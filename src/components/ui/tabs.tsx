@@ -36,7 +36,7 @@ const Tabs = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
 Tabs.displayName = "Tabs"
 
 const TabsList = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} role="tablist" className={cn("inline-flex h-9 items-center justify-center rounded-lg bg-zinc-900 p-1 text-zinc-400", className)} {...props} />
+  <div ref={ref} role="tablist" className={cn("inline-flex h-9 items-center justify-center rounded-[11px] border border-[#B8CEE2]/10 bg-[#11121C]/55 p-1 text-[#98A8BC] shadow-[inset_0_1px_0_rgba(255,255,255,0.055)] backdrop-blur-2xl", className)} {...props} />
 ))
 TabsList.displayName = "TabsList"
 
@@ -51,8 +51,8 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttribut
       data-state={isActive ? "active" : "inactive"}
       onClick={() => onValueChange(value)}
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50",
-        isActive ? "bg-zinc-800 text-zinc-100 shadow-sm" : "text-zinc-400 hover:text-zinc-100",
+        "inline-flex items-center justify-center whitespace-nowrap rounded-[8px] px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8CEE2]/50 disabled:pointer-events-none disabled:opacity-50",
+        isActive ? "bg-[#53589A]/85 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_5px_16px_rgba(5,5,14,0.22)]" : "text-[#98A8BC] hover:text-white",
         className
       )}
       {...props}

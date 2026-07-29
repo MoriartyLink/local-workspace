@@ -488,7 +488,7 @@ function TimeGrid({
                       <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
                         {day.toLocaleDateString("en-US", { weekday: "short" })}
                       </p>
-                      <p className={`mt-0.5 text-sm font-semibold ${key === todayKey ? "text-blue-400" : "text-zinc-200"}`}>
+                      <p className={`mt-0.5 text-sm font-semibold ${key === todayKey ? "text-[#B8CEE2]" : "text-zinc-200"}`}>
                         {day.getDate()}
                       </p>
                     </div>
@@ -526,12 +526,12 @@ function TimeGrid({
                       data-schedule-time={time}
                       aria-label={`Add meeting on ${date} at ${time}`}
                       onClick={() => onSelectSlot(date, time)}
-                      className={`group border-r border-t transition-colors hover:bg-blue-500/10 focus:bg-blue-500/10 focus:outline-none ${
+                      className={`group border-r border-t transition-colors hover:bg-[#53589A]/20 focus:bg-[#53589A]/20 focus:outline-none ${
                         slot % 2 === 0 ? "border-zinc-800/80" : "border-zinc-900"
                       }`}
                       style={{ gridColumn: dayIndex + 2, gridRow: slot + 1 }}
                     >
-                      <Plus className="mx-auto h-3 w-3 text-blue-400 opacity-0 transition-opacity group-hover:opacity-70 group-focus:opacity-70" />
+                      <Plus className="mx-auto h-3 w-3 text-[#B8CEE2] opacity-0 transition-opacity group-hover:opacity-70 group-focus:opacity-70" />
                     </button>
                   );
                 }),
@@ -639,19 +639,19 @@ function MonthGrid({
                     onSelectDay(key);
                   }
                 }}
-                className="group min-h-28 cursor-pointer border-b border-r border-zinc-800/80 p-1.5 transition-colors hover:bg-blue-500/5 focus:bg-blue-500/5 focus:outline-none"
+                className="group min-h-28 cursor-pointer border-b border-r border-zinc-800/80 p-1.5 transition-colors hover:bg-[#53589A]/10 focus:bg-[#53589A]/10 focus:outline-none"
               >
                 <div className="mb-1 flex items-center justify-between">
                   <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${
                     key === todayKey
-                      ? "bg-blue-500 font-semibold text-white"
+                      ? "bg-[#53589A] font-semibold text-white"
                       : inCurrentMonth
                         ? "text-zinc-300"
                         : "text-zinc-700"
                   }`}>
                     {day.getDate()}
                   </span>
-                  <Plus className="h-3 w-3 text-blue-400 opacity-0 transition-opacity group-hover:opacity-60" />
+                  <Plus className="h-3 w-3 text-[#B8CEE2] opacity-0 transition-opacity group-hover:opacity-60" />
                 </div>
                 <div className="space-y-1">
                   {dayMeetings.slice(0, 3).map(meeting => (
@@ -714,7 +714,7 @@ function YearGrid({
               <button
                 type="button"
                 onClick={() => onSelectMonth(monthStart)}
-                className="mb-2 text-xs font-semibold text-zinc-300 hover:text-blue-300"
+                className="mb-2 text-xs font-semibold text-zinc-300 hover:text-[#B8CEE2]"
               >
                 {monthStart.toLocaleDateString("en-US", { month: "long" })}
               </button>
@@ -735,9 +735,9 @@ function YearGrid({
                       data-schedule-date={key}
                       onClick={() => onSelectDay(key)}
                       title={dayMeetings.map(meeting => meeting.title || "Untitled meeting").join(", ")}
-                      className={`relative flex h-7 items-center justify-center rounded text-[9px] transition-colors hover:bg-blue-500/15 ${
+                      className={`relative flex h-7 items-center justify-center rounded text-[9px] transition-colors hover:bg-[#53589A]/25 ${
                         key === todayKey
-                          ? "bg-blue-500 text-white"
+                          ? "bg-[#53589A] text-white"
                           : inMonth
                             ? "text-zinc-400"
                             : "text-zinc-800"
@@ -975,7 +975,7 @@ function PersonalTimeOverlay({
                     onClick={() => toggleWeekday(weekday.value)}
                     className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] ${
                       draft.weekdays.includes(weekday.value)
-                        ? "bg-blue-500 text-white"
+                        ? "bg-[#53589A] text-white"
                         : "bg-zinc-800 text-zinc-500 hover:text-zinc-300"
                     }`}
                   >
@@ -1283,7 +1283,7 @@ function MeetingOverlay({
                         onClick={() => toggleParticipant(person.id)}
                         className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] ${
                           selected
-                            ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
+                            ? "border-[#B8CEE2]/30 bg-[#53589A]/35 text-[#DCE7F1]"
                             : "border-zinc-700 text-zinc-500 hover:text-zinc-300"
                         }`}
                       >
@@ -1511,8 +1511,8 @@ export function MeetingPage() {
     <div className="fade-in space-y-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-            <CalendarDays className="h-4 w-4 text-blue-400" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-[#B8CEE2]/15 bg-[#53589A]/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+            <CalendarDays className="h-4 w-4 text-[#B8CEE2]" />
           </div>
           <div className="min-w-0">
             <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Schedule</h2>
@@ -1539,8 +1539,10 @@ export function MeetingPage() {
                 key={option.value}
                 type="button"
                 onClick={() => setView(option.value)}
-                className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                  view === option.value ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                className={`rounded-[7px] px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                  view === option.value
+                    ? "bg-[#53589A]/85 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_5px_16px_rgba(5,5,14,0.2)]"
+                    : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 {option.label}

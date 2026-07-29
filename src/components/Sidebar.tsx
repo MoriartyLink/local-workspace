@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { BookOpen, FolderKanban, BarChart3, Search, HardDrive, FolderOpen, PanelLeftClose, PanelLeft, Download, Upload, FolderSync, Calendar, Users } from "lucide-react";
+import { BookOpen, FolderKanban, BarChart3, Search, HardDrive, FolderOpen, PanelLeftClose, PanelLeft, FolderSync, Calendar, Users } from "lucide-react";
 import { useData } from "@/contexts/DataContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ const navItems = [
 ];
 
 export function Sidebar() {
-  const { vaultPath, openVault, changeVault, exportBackup, importBackup } = useData();
+  const { vaultPath, openVault, changeVault } = useData();
   const { collapsed, setCollapsed } = useSidebar();
 
   // Get short vault name for display
@@ -23,55 +23,54 @@ export function Sidebar() {
   return (
     <>
       <aside
-        className={`fixed left-0 top-0 h-full border-r border-zinc-800/60 bg-black/60 backdrop-blur-xl z-50 flex flex-col transition-all duration-300 ease-in-out ${
-          collapsed ? "w-[60px]" : "w-[220px]"
+        className={`fixed left-0 top-0 z-50 flex h-full flex-col border-r border-[#B8CEE2]/10 bg-[linear-gradient(160deg,rgba(184,206,226,0.075),rgba(22,24,35,0.7)_24%,rgba(9,9,16,0.72))] shadow-[inset_-1px_0_0_rgba(255,255,255,0.025),14px_0_48px_rgba(2,2,8,0.24)] backdrop-blur-3xl transition-all duration-300 ease-out ${
+          collapsed ? "w-[72px]" : "w-[248px]"
         }`}
       >
-        <div className="p-5 pb-6 flex items-center justify-between">
+        <div className="flex h-[76px] items-center justify-between px-4">
           {collapsed ? (
-            <div className="w-full flex justify-center">
+            <div className="flex w-full justify-center">
               <button
                 onClick={() => setCollapsed(false)}
-                className="text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[#B8CEE2]/10 bg-[#B8CEE2]/[0.055] text-[#98A8BC] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-all hover:bg-[#B8CEE2]/10 hover:text-white"
                 title="Expand sidebar"
               >
-                <PanelLeft className="w-5 h-5" />
+                <PanelLeft className="h-[18px] w-[18px]" />
               </button>
             </div>
           ) : (
-            <>
-              <div className="flex items-center justify-between w-full">
-                <h1 className="text-base font-bold text-zinc-100 tracking-tight truncate">Local Workspace</h1>
+              <div className="flex w-full items-center justify-between">
+                <h1 className="truncate text-[15px] font-semibold tracking-[-0.025em] text-[#EAF2FA]">Local Workspace</h1>
                 <button
                   onClick={() => setCollapsed(true)}
-                  className="text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer shrink-0 ml-1"
+                  className="ml-1 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[#758399] transition-colors hover:bg-[#B8CEE2]/[0.07] hover:text-[#EAF2FA]"
                   title="Collapse sidebar"
                 >
-                  <PanelLeftClose className="w-4 h-4" />
+                  <PanelLeftClose className="h-4 w-4" />
                 </button>
               </div>
-            </>
           )}
         </div>
 
-        <nav className="flex-1 px-3 space-y-1">
+        {!collapsed && <p className="px-5 pb-2 pt-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-[#66758B]">Workspace</p>}
+        <nav className="flex-1 space-y-1 px-3">
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`} end={item.to === "/"}>
-              <item.icon className="w-[18px] h-[18px]" />
+              <item.icon className="h-[17px] w-[17px] shrink-0" />
               {!collapsed && <span>{item.label}</span>}
             </NavLink>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-zinc-800/60 space-y-3">
+        <div className="space-y-3 border-t border-white/[0.065] p-3.5">
           {!collapsed && (
             <>
-              <div className="rounded-lg bg-zinc-950/50 backdrop-blur-sm border border-zinc-800/60 p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[11px] text-zinc-300 font-medium">Vault</span>
+              <div className="rounded-[14px] border border-white/[0.075] bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+                <div className="mb-2 flex items-center gap-2">
+                  <HardDrive className="h-3.5 w-3.5 text-[#B8CEE2]" />
+                  <span className="text-[11px] font-medium text-[#DCE7F1]">Vault</span>
                 </div>
-                <p className="text-[10px] text-zinc-500 truncate mb-2" title={vaultPath}>
+                <p className="mb-2.5 truncate text-[10px] text-[#758399]" title={vaultPath}>
                   {vaultName}
                 </p>
                 <div className="flex gap-1.5">
@@ -79,7 +78,7 @@ export function Sidebar() {
                     variant="outline"
                     size="sm"
                     onClick={openVault}
-                    className="flex-1 h-7 text-[10px] gap-1 border-zinc-700 text-zinc-400 hover:text-white"
+                    className="h-7 flex-1 gap-1 text-[10px]"
                     title="Open vault folder in file manager"
                   >
                     <FolderOpen className="w-3 h-3" />
@@ -89,7 +88,7 @@ export function Sidebar() {
                     variant="outline"
                     size="sm"
                     onClick={changeVault}
-                    className="flex-1 h-7 text-[10px] gap-1 border-zinc-700 text-zinc-400 hover:text-white"
+                    className="h-7 flex-1 gap-1 text-[10px]"
                     title="Switch to a different vault directory"
                   >
                     <FolderSync className="w-3 h-3" />
@@ -98,34 +97,6 @@ export function Sidebar() {
                 </div>
               </div>
 
-              {/* Backup actions */}
-              <div className="flex gap-1.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={exportBackup}
-                  className="flex-1 h-6 text-[9px] gap-1 text-zinc-500 hover:text-zinc-300"
-                  title="Export vault backup as JSON"
-                >
-                  <Download className="w-2.5 h-2.5" />
-                  Export
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={importBackup}
-                  className="flex-1 h-6 text-[9px] gap-1 text-zinc-500 hover:text-zinc-300"
-                  title="Import vault from JSON backup"
-                >
-                  <Upload className="w-2.5 h-2.5" />
-                  Import
-                </Button>
-              </div>
-
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] text-zinc-500">All data stored locally as .md files</span>
-              </div>
             </>
           )}
         </div>

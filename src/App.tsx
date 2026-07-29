@@ -33,10 +33,10 @@ function AppLayout({ children }: { children: React.ReactNode }) {
     <>
       <Sidebar />
       <main
-        className="p-6 pb-12 transition-all duration-300 ease-in-out"
-        style={{ marginLeft: collapsed ? 60 : 220 }}
+        className="app-main px-5 pb-14 pt-6 sm:px-7 lg:px-10"
+        style={{ marginLeft: collapsed ? 72 : 248 }}
       >
-        {children}
+        <div className="app-content">{children}</div>
       </main>
     </>
   );

@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Plus, Trash2, Brain, Heart, ChevronLeft, ChevronRight, CheckCircle2, Download, RefreshCw, FolderKanban } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -443,51 +442,7 @@ export function JournalPage() {
           </CardContent>
         </Card>
 
-        {/* Quick Stats */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-              </div>
-              <span className="text-zinc-100">Stats</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-zinc-400">Total Tasks</span>
-                <span className="text-sm font-bold text-blue-400">{entry.tasks.length}</span>
-              </div>
-              <Separator className="bg-zinc-700/50" />
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-zinc-400">Completed</span>
-                <span className="text-sm font-bold text-emerald-400">{entry.tasks.filter((t) => t.completed).length}</span>
-              </div>
-              </div>
-              <Separator className="bg-zinc-700/50" />
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-zinc-400">Completion</span>
-                <span className="text-sm font-bold text-purple-400">{entry.tasks.length > 0 ? Math.round((entry.tasks.filter((t) => t.completed).length / entry.tasks.length) * 100) : 0}%</span>
-            </div>
-          </CardContent>
-        </Card>
       </div>
-
-      {/* Journal */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-            </div>
-            <span className="text-slate-100">Journal</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea placeholder="Write about your day... What happened? What did you learn? How do you feel?" value={entry.journal} onChange={(e) => save({ journal: e.target.value })} className="min-h-[200px] text-sm leading-relaxed bg-zinc-900 border-zinc-700 text-zinc-200 placeholder:text-zinc-600" />
-        </CardContent>
-      </Card>
 
     </div>
   );
