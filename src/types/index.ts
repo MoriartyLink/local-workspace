@@ -98,6 +98,7 @@ export interface Meeting {
   date: string;       // ISO date string YYYY-MM-DD
   time: string;       // HH:mm
   reminder: boolean;
+  reminderMinutes?: number; // minutes before the meeting; falls back to the Telegram default
   agenda: string;
   minutes: string;
   participants: string[]; // person IDs
@@ -129,4 +130,3 @@ export const PROJECT_COLORS = [
   "#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b",
   "#10b981", "#06b6d4", "#ef4444", "#6366f1",
 ];
-

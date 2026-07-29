@@ -7,6 +7,31 @@ export interface VaultSearchResult {
   snippet: string;
 }
 
+export interface TelegramReminderSettings {
+  enabled: boolean;
+  chatId: string;
+  defaultReminderMinutes: number;
+  botConfigured: boolean;
+  secureStorageAvailable: boolean;
+}
+
+export interface TelegramSettingsUpdate {
+  enabled: boolean;
+  chatId: string;
+  defaultReminderMinutes: number;
+  botToken?: string;
+}
+
+export interface TelegramActionResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface TelegramChatResult extends TelegramActionResult {
+  chatId?: string;
+  chatTitle?: string;
+}
+
 export interface ElectronAPI {
   // Vault
   getVaultPath: () => Promise<string>;
@@ -26,6 +51,10 @@ export interface ElectronAPI {
   loadAllMeetings: () => Promise<Meeting[]>;
   saveMeeting: (meeting: Meeting) => Promise<boolean>;
   deleteMeeting: (meetingId: string) => Promise<boolean>;
+  getTelegramReminderSettings: () => Promise<TelegramReminderSettings>;
+  saveTelegramReminderSettings: (settings: TelegramSettingsUpdate) => Promise<TelegramReminderSettings>;
+  testTelegramReminder: (botToken?: string, chatId?: string) => Promise<TelegramActionResult>;
+  findTelegramChat: (botToken?: string) => Promise<TelegramChatResult>;
 
   // People
   loadAllPeople: () => Promise<Person[]>;

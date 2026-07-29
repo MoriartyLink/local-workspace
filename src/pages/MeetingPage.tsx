@@ -1,5 +1,5 @@
-import { useCallback, useMemo } from "react";
-import { Calendar, Clock, Bell, BellOff, FileText, Users, Plus, Trash2, ChevronRight, ArrowLeft, CheckCircle2, ListChecks } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Calendar, Clock, Bell, BellOff, FileText, Users, Plus, Trash2, ChevronRight, ArrowLeft, CheckCircle2, ListChecks, Bot, Send, Search, Loader2, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,17 @@ import { Label } from "@/components/ui/label";
 import { useData } from "@/contexts/DataContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import type { Meeting } from "@/types";
+import type { TelegramReminderSettings } from "@/types/electron";
+
+const REMINDER_OPTIONS = [
+  { value: 0, label: "At meeting time" },
+  { value: 5, label: "5 minutes before" },
+  { value: 10, label: "10 minutes before" },
+  { value: 15, label: "15 minutes before" },
+  { value: 30, label: "30 minutes before" },
+  { value: 60, label: "1 hour before" },
+  { value: 1440, label: "1 day before" },
+];
 
 function createMeeting(): Meeting {
   return {
@@ -39,6 +50,239 @@ function isUpcoming(date: string, time: string): boolean {
 function getPersonName(people: { id: string; name: string }[], id: string): string {
   const p = people.find((p) => p.id === id);
   return p?.name || "Unknown";
+}
+
+function TelegramReminderSettingsCard() {
+  const [settings, setSettings] = useState<TelegramReminderSettings>({
+    enabled: false,
+    chatId: "",
+    defaultReminderMinutes: 15,
+    botConfigured: false,
+    secureStorageAvailable: false,
+  });
+  const [botToken, setBotToken] = useState("");
+  const [chatId, setChatId] = useState("");
+  const [status, setStatus] = useState<"loading" | "idle" | "saving" | "testing" | "finding">("loading");
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const desktopAvailable = Boolean(window.electronAPI);
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api) {
+      setStatus("idle");
+      return;
+    }
+    let active = true;
+    void api.getTelegramReminderSettings()
+      .then((loaded) => {
+        if (!active) return;
+        setSettings(loaded);
+        setChatId(loaded.chatId);
+        setStatus("idle");
+      })
+      .catch(() => {
+        if (!active) return;
+        setFeedback({ kind: "error", text: "Could not load Telegram reminder settings." });
+        setStatus("idle");
+      });
+    return () => { active = false; };
+  }, []);
+
+  const saveSettings = async () => {
+    const api = window.electronAPI;
+    if (!api) return;
+    if (settings.enabled && !chatId.trim()) {
+      setFeedback({ kind: "error", text: "Add or discover a chat before enabling reminders." });
+      return;
+    }
+    if (settings.enabled && !settings.botConfigured && !botToken.trim()) {
+      setFeedback({ kind: "error", text: "Add a bot token before enabling reminders." });
+      return;
+    }
+    setStatus("saving");
+    setFeedback(null);
+    try {
+      const saved = await api.saveTelegramReminderSettings({
+        enabled: settings.enabled,
+        chatId,
+        defaultReminderMinutes: settings.defaultReminderMinutes,
+        botToken: botToken.trim() || undefined,
+      });
+      setSettings(saved);
+      setChatId(saved.chatId);
+      setBotToken("");
+      setFeedback({ kind: "success", text: "Telegram reminder settings saved." });
+    } catch (error) {
+      setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Could not save Telegram settings." });
+    } finally {
+      setStatus("idle");
+    }
+  };
+
+  const findChat = async () => {
+    const api = window.electronAPI;
+    if (!api) return;
+    setStatus("finding");
+    setFeedback(null);
+    try {
+      const result = await api.findTelegramChat(botToken.trim() || undefined);
+      if (result.ok && result.chatId) {
+        setChatId(result.chatId);
+        setFeedback({ kind: "success", text: `${result.message} Save settings to use this chat.` });
+      } else {
+        setFeedback({ kind: "error", text: result.message });
+      }
+    } catch (error) {
+      setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Could not find a Telegram chat." });
+    } finally {
+      setStatus("idle");
+    }
+  };
+
+  const sendTest = async () => {
+    const api = window.electronAPI;
+    if (!api) return;
+    setStatus("testing");
+    setFeedback(null);
+    try {
+      const result = await api.testTelegramReminder(botToken.trim() || undefined, chatId.trim() || undefined);
+      setFeedback({ kind: result.ok ? "success" : "error", text: result.message });
+    } catch (error) {
+      setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Could not send the test reminder." });
+    } finally {
+      setStatus("idle");
+    }
+  };
+
+  const configured = settings.botConfigured || Boolean(botToken.trim());
+
+  return (
+    <Card className="border-blue-500/20 bg-blue-500/[0.025]">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-sm text-zinc-100">
+            <Bot className="h-4 w-4 text-sky-400" />
+            Telegram meeting reminders
+          </CardTitle>
+          <span className={`rounded-full px-2 py-1 text-[10px] ${
+            settings.enabled && configured && chatId
+              ? "bg-emerald-500/10 text-emerald-400"
+              : "bg-zinc-800 text-zinc-500"
+          }`}>
+            {settings.enabled && configured && chatId ? "Active" : "Not active"}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!desktopAvailable ? (
+          <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
+            Telegram reminders require the Electron desktop app so the bot token stays out of browser storage.
+          </p>
+        ) : (
+          <>
+            <p className="text-xs leading-relaxed text-zinc-500">
+              Create a bot with @BotFather, send the bot a message, paste its token, then use “Find chat.”
+              Reminders are checked while Local Workspace is running.
+            </p>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.4fr_1fr_0.8fr]">
+              <div>
+                <Label className="text-xs text-zinc-400">Bot token</Label>
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={botToken}
+                  onChange={(event) => setBotToken(event.target.value)}
+                  placeholder={settings.botConfigured ? "Saved — leave blank to keep" : "Token from @BotFather"}
+                  className="mt-1.5 h-9 bg-zinc-900 text-xs text-zinc-200 placeholder:text-zinc-600"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-zinc-400">Chat ID</Label>
+                <Input
+                  value={chatId}
+                  onChange={(event) => setChatId(event.target.value)}
+                  placeholder="Find or enter chat ID"
+                  className="mt-1.5 h-9 bg-zinc-900 text-xs text-zinc-200 placeholder:text-zinc-600"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-zinc-400">Default reminder</Label>
+                <select
+                  value={settings.defaultReminderMinutes}
+                  onChange={(event) => setSettings(current => ({
+                    ...current,
+                    defaultReminderMinutes: Number(event.target.value),
+                  }))}
+                  className="mt-1.5 h-9 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 text-xs text-zinc-300 outline-none"
+                >
+                  {REMINDER_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-3">
+              <button
+                type="button"
+                onClick={() => setSettings(current => ({ ...current, enabled: !current.enabled }))}
+                className="flex items-center gap-2 text-xs text-zinc-400"
+              >
+                <span className={`relative h-5 w-9 rounded-full transition-colors ${
+                  settings.enabled ? "bg-emerald-500" : "bg-zinc-700"
+                }`}>
+                  <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                    settings.enabled ? "translate-x-[18px]" : "translate-x-0.5"
+                  }`} />
+                </span>
+                Enable Telegram reminders
+              </button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={findChat}
+                  disabled={status !== "idle" || (!configured)}
+                  className="h-8 gap-1.5 border-zinc-700 text-xs"
+                >
+                  {status === "finding" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                  Find chat
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={sendTest}
+                  disabled={status !== "idle" || !configured || !chatId.trim()}
+                  className="h-8 gap-1.5 border-zinc-700 text-xs"
+                >
+                  {status === "testing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  Send test
+                </Button>
+                <Button type="button" size="sm" onClick={saveSettings} disabled={status !== "idle"} className="h-8 gap-1.5 text-xs">
+                  {status === "saving" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Save
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+              <span className="flex items-center gap-1 text-zinc-600">
+                <ShieldCheck className="h-3 w-3" />
+                {settings.secureStorageAvailable
+                  ? "Bot token is encrypted with operating-system storage."
+                  : "Bot token is stored only in this app's local settings."}
+              </span>
+              {feedback && (
+                <span className={feedback.kind === "success" ? "text-emerald-400" : "text-red-400"}>
+                  {feedback.text}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function MeetingDetail({ meeting, people, projects, onUpdate, onDelete, onBack }: {
@@ -180,7 +424,24 @@ function MeetingDetail({ meeting, people, projects, onUpdate, onDelete, onBack }
                 </button>
               </div>
               {meeting.reminder && (
-                <p className="text-[10px] text-emerald-400/70">Reminder will notify before the meeting</p>
+                <div className="space-y-2 rounded-lg border border-emerald-500/15 bg-emerald-500/5 p-2.5">
+                  <Label className="text-[10px] text-emerald-300/80">Telegram reminder time</Label>
+                  <select
+                    value={meeting.reminderMinutes ?? ""}
+                    onChange={(event) => onUpdate({
+                      reminderMinutes: event.target.value === "" ? undefined : Number(event.target.value),
+                    })}
+                    className="h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[11px] text-zinc-300 outline-none"
+                  >
+                    <option value="">Use Telegram default</option>
+                    {REMINDER_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[9px] leading-relaxed text-zinc-500">
+                    Sent to the configured Telegram chat while Local Workspace is running.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -256,6 +517,8 @@ function MeetingList({ meetings, people, projects, onSelect, onAdd }: {
           <Plus className="w-4 h-4" /> New Meeting
         </Button>
       </div>
+
+      <TelegramReminderSettingsCard />
 
       {meetings.length === 0 ? (
         <Card>
