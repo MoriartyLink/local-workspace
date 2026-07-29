@@ -97,7 +97,15 @@ export interface Meeting {
   title: string;
   date: string;       // ISO date string YYYY-MM-DD
   time: string;       // HH:mm
+  durationMinutes?: number;
+  accent?: "blue" | "violet" | "emerald" | "amber" | "rose" | "cyan"
+    | "orange" | "lime" | "pink" | "indigo" | "teal" | "fuchsia";
+  importance?: 1 | 2 | 3 | 4 | 5;
+  kind?: "meeting" | "personal";
+  personalCategory?: "gym" | "university" | "development" | "family" | "relationship";
+  recurrenceGroupId?: string;
   reminder: boolean;
+  reminderMinutes?: number;
   agenda: string;
   minutes: string;
   participants: string[]; // person IDs
@@ -129,4 +137,3 @@ export const PROJECT_COLORS = [
   "#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b",
   "#10b981", "#06b6d4", "#ef4444", "#6366f1",
 ];
-

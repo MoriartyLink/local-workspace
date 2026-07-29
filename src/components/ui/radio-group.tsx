@@ -33,8 +33,8 @@ const RadioGroupItem = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttri
       value={value}
       onClick={() => onValueChange?.(value)}
       className={cn(
-        "h-4 w-4 rounded-full border border-zinc-600 bg-zinc-900 text-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer transition-all",
-        isChecked && "border-blue-500 bg-blue-500",
+        "h-4 w-4 rounded-full border border-[#B8CEE2]/25 bg-[#11121C]/75 text-[#B8CEE2] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#B8CEE2]/50 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer transition-all",
+        isChecked && "border-[#B8CEE2] bg-[#53589A]",
         className
       )}
       {...props}
