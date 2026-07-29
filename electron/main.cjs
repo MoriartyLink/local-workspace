@@ -86,6 +86,10 @@ function buildJournalMd(entry) {
     lessonLearned: entry.lessonLearned || "",
     lessonChange: entry.lessonChange || "",
     excitedAbout: entry.excitedAbout || "",
+    happyToday: entry.happyToday || "",
+    surprisedCanDo: entry.surprisedCanDo || "",
+    happyIfProgress: entry.happyIfProgress || "",
+    notHappyToday: entry.notHappyToday || "",
     tasks: (entry.tasks || []).map(t => ({
       id: t.id,
       task: t.task,
@@ -93,6 +97,8 @@ function buildJournalMd(entry) {
       system: t.system,
       mission: t.mission,
       completed: t.completed,
+      assignedTo: t.assignedTo || [],
+      projectCardId: t.projectCardId || "",
     })),
   };
   const body = entry.journal || "";
@@ -106,9 +112,18 @@ function parseJournalMd(content, dateStr) {
     date: meta.date || dateStr,
     tasks: (meta.tasks || []).map(t => {
       if (typeof t === "string") {
-        try { return JSON.parse(t); } catch { return { id: "", task: t, outcome: "", system: "", mission: "", completed: false }; }
+        try { t = JSON.parse(t); } catch { return { id: "", task: t, outcome: "", system: "", mission: "", completed: false, assignedTo: [], projectCardId: "" }; }
       }
-      return t;
+      return {
+        id: t.id || "",
+        task: t.task || "",
+        outcome: t.outcome || "",
+        system: t.system || "",
+        mission: t.mission || "",
+        completed: t.completed === true || t.completed === "true",
+        assignedTo: t.assignedTo || [],
+        projectCardId: t.projectCardId || "",
+      };
     }),
     mentalStatus: meta.mentalStatus || { morning: 2, afternoon: 2, night: 2 },
     physicalStatus: meta.physicalStatus || "good",
@@ -120,6 +135,10 @@ function parseJournalMd(content, dateStr) {
     lessonLearned: meta.lessonLearned || "",
     lessonChange: meta.lessonChange || "",
     excitedAbout: meta.excitedAbout || "",
+    happyToday: meta.happyToday || "",
+    surprisedCanDo: meta.surprisedCanDo || "",
+    happyIfProgress: meta.happyIfProgress || "",
+    notHappyToday: meta.notHappyToday || "",
   };
 }
 

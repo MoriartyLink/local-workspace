@@ -1,5 +1,7 @@
 # Local Workspace
 
+<img width="1200" height="900" alt="image" src="https://github.com/user-attachments/assets/60c769ca-48ce-4ffd-ba33-5045d3ed7c0d" />
+
 A **local-first desktop workspace** for journaling, task tracking, projects, meetings, and people management. All your data lives as plain Markdown (`.md`) files with YAML frontmatter — inspired by Obsidian — so it is fully yours, readable, and portable.
 
 ## Why this app exists
@@ -12,13 +14,6 @@ Most productivity tools lock your notes and tasks inside a cloud account. Local 
 - Individuals managing projects with Kanban boards and milestones.
 - Anyone who prefers **local-first, private** storage over cloud accounts.
 - Linux (especially Manjaro / GNOME) users who want a native desktop app.
-
-## Why Electron desktop + an Obsidian-style `.md` vault (instead of a web app)
-
-- **Local-first & private:** no server, no account, no telemetry. Data stays in a folder on your disk.
-- **Portable & future-proof:** `.md` + YAML works with Obsidian, any text editor, git, and scripts — you are never locked in.
-- **A real desktop app:** native window, system menu, file dialogs, and full offline use — things a browser tab cannot do well.
-- **Simple sync:** point the vault at any synced folder (e.g. Syncthing / Nextcloud) to share data across machines.
 
 ## Features
 
@@ -98,9 +93,6 @@ Data flow:
 - **Direct edits:** hand-editing `.md` is supported, but keep the YAML frontmatter valid.
 - **One vault at a time:** the app targets a single local vault.
 
-## Platform
-
-This app is built and tuned for **Manjaro Linux (GNOME / Wayland)**, but it is **open source** and the source builds on any platform Electron supports. Packaging targets: AppImage + `.deb` (Linux), `.dmg` (macOS), NSIS (Windows). The prebuilt AppImage lives in the `release/` folder.
 
 ## License
 

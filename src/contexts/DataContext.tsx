@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import type { DailyEntry, Project, Meeting, Person } from "@/types";
+import { getYangonResetDateKey } from "@/lib/dates";
 import "@/types/electron";
 
 interface DataContextType {
@@ -20,6 +21,7 @@ interface DataContextType {
 }
 
 const DataContext = createContext<DataContextType | null>(null);
+const RESET_CHECK_INTERVAL_MS = 60 * 1000;
 
 export function useData(): DataContextType {
   const ctx = useContext(DataContext);
@@ -37,6 +39,17 @@ function lsGet<T>(key: string, fallback: T): T {
 }
 function lsSet(key: string, value: unknown) { localStorage.setItem(key, JSON.stringify(value)); }
 
+function findProjectCardIdsToReset(entries: Record<string, DailyEntry>, currentResetDateKey: string): Set<string> {
+  const ids = new Set<string>();
+  for (const [dateKey, entry] of Object.entries(entries)) {
+    if (dateKey >= currentResetDateKey) continue;
+    for (const task of entry.tasks || []) {
+      if (!task.completed && task.projectCardId) ids.add(task.projectCardId);
+    }
+  }
+  return ids;
+}
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const [entries, setEntries] = useState<Record<string, DailyEntry>>({});
   const [projects, setProjectsState] = useState<Project[]>([]);
@@ -44,6 +57,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [people, setPeopleState] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [vaultPath, setVaultPath] = useState("");
+  const [resetCheckTick, setResetCheckTick] = useState(0);
 
   const loadAllData = useCallback(async () => {
     if (isElectron()) {
@@ -157,6 +171,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const currentResetDateKey = getYangonResetDateKey();
+    const cardIdsToReset = findProjectCardIdsToReset(entries, currentResetDateKey);
+    if (cardIdsToReset.size === 0) return;
+    const hasProjectCardToReset = projects.some((project) =>
+      project.cards.some((card) => cardIdsToReset.has(card.id) && card.columnId === "in-progress")
+    );
+    if (!hasProjectCardToReset) return;
+
+    setProjects((prev) => {
+      let changed = false;
+      const next = prev.map((project) => {
+        let projectChanged = false;
+        const cards = project.cards.map((card) => {
+          if (!cardIdsToReset.has(card.id) || card.columnId !== "in-progress") return card;
+          projectChanged = true;
+          changed = true;
+          return { ...card, columnId: "todo" as const, completedAt: "" };
+        });
+        return projectChanged ? { ...project, cards } : project;
+      });
+      return changed ? next : prev;
+    });
+  }, [entries, loading, projects, resetCheckTick, setProjects]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setResetCheckTick((tick) => tick + 1);
+    }, RESET_CHECK_INTERVAL_MS);
+    return () => window.clearInterval(interval);
   }, []);
 
   const changeVault = useCallback(async () => {
