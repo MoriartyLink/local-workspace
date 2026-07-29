@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { Plus, Trash2, Brain, Heart, ChevronLeft, ChevronRight, CheckCircle2, Download, RefreshCw, FolderKanban } from "lucide-react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { Plus, Trash2, Brain, Heart, ChevronLeft, ChevronRight, CheckCircle2, Download, RefreshCw, FolderKanban, Search, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useData } from "@/contexts/DataContext";
-import type { DailyEntry, Task, PhysicalStatus, Project } from "@/types";
+import type { DailyEntry, Task, PhysicalStatus, Project, KanbanCard, KanbanColumnId } from "@/types";
 
 function getDateString(d: Date) { return d.toISOString().split("T")[0]; }
 function formatDateLong(d: Date) { return d.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }); }
@@ -20,8 +20,29 @@ function createEmptyTask(): Task {
   return { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), task: "", outcome: "", system: "", mission: "", assignedTo: [], completed: false };
 }
 
-function TaskField({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+function TaskField({
+  value,
+  onChange,
+  placeholder,
+  suggestions = [],
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  suggestions?: string[];
+}) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedSuggestion, setHighlightedSuggestion] = useState(0);
+  const normalizedValue = value.trim().toLocaleLowerCase();
+  const matchingSuggestions = suggestions
+    .filter(suggestion => {
+      const normalizedSuggestion = suggestion.toLocaleLowerCase();
+      return normalizedSuggestion !== normalizedValue
+        && (!normalizedValue || normalizedSuggestion.includes(normalizedValue));
+    })
+    .slice(0, 6);
+
   useEffect(() => {
     const el = ref.current;
     if (el) {
@@ -29,15 +50,257 @@ function TaskField({ value, onChange, placeholder }: { value: string; onChange: 
       el.style.height = el.scrollHeight + "px";
     }
   }, [value]);
+
+  useEffect(() => {
+    setHighlightedSuggestion(0);
+  }, [value]);
+
+  const chooseSuggestion = (suggestion: string) => {
+    onChange(suggestion);
+    setShowSuggestions(false);
+    ref.current?.focus();
+  };
+
   return (
-    <textarea
-      ref={ref}
-      rows={1}
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-transparent text-zinc-200 placeholder:text-zinc-600 outline-none text-[13px] p-0 border-none resize-none overflow-hidden break-words whitespace-normal"
-    />
+    <div className="relative">
+      <textarea
+        ref={ref}
+        rows={1}
+        placeholder={placeholder}
+        value={value}
+        onFocus={() => setShowSuggestions(true)}
+        onBlur={() => setShowSuggestions(false)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setShowSuggestions(true);
+        }}
+        onKeyDown={(e) => {
+          if (!showSuggestions || matchingSuggestions.length === 0) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setHighlightedSuggestion(index => (index + 1) % matchingSuggestions.length);
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHighlightedSuggestion(index => (index - 1 + matchingSuggestions.length) % matchingSuggestions.length);
+          } else if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            chooseSuggestion(matchingSuggestions[highlightedSuggestion] ?? matchingSuggestions[0]);
+          } else if (e.key === "Escape") {
+            setShowSuggestions(false);
+          }
+        }}
+        aria-autocomplete={suggestions.length > 0 ? "list" : undefined}
+        aria-expanded={suggestions.length > 0 ? showSuggestions && matchingSuggestions.length > 0 : undefined}
+        className="w-full bg-transparent text-zinc-200 placeholder:text-zinc-600 outline-none text-[13px] p-0 border-none resize-none overflow-hidden break-words whitespace-normal"
+      />
+      {showSuggestions && matchingSuggestions.length > 0 && (
+        <div
+          role="listbox"
+          className="mt-1 max-h-48 w-full min-w-52 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl shadow-black/40"
+        >
+          <p className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-zinc-600">
+            Previously used
+          </p>
+          {matchingSuggestions.map((suggestion, index) => (
+            <button
+              key={suggestion}
+              type="button"
+              role="option"
+              aria-selected={index === highlightedSuggestion}
+              title={suggestion}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => chooseSuggestion(suggestion)}
+              onMouseEnter={() => setHighlightedSuggestion(index)}
+              className={`block w-full rounded-md px-2 py-1.5 text-left text-xs leading-relaxed transition-colors ${
+                index === highlightedSuggestion
+                  ? "bg-blue-500/15 text-blue-200"
+                  : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+              }`}
+            >
+              <span className="line-clamp-2">{suggestion}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function collectTaskTextSuggestions(
+  entries: Record<string, DailyEntry>,
+  field: "system" | "mission",
+): string[] {
+  const seen = new Set<string>();
+  const suggestions: string[] = [];
+  const recentEntries = Object.values(entries).sort((a, b) => b.date.localeCompare(a.date));
+
+  for (const journalEntry of recentEntries) {
+    for (const task of [...journalEntry.tasks].reverse()) {
+      const text = task[field]?.trim();
+      if (!text) continue;
+      const normalizedText = text.toLocaleLowerCase();
+      if (seen.has(normalizedText)) continue;
+      seen.add(normalizedText);
+      suggestions.push(text);
+      if (suggestions.length === 30) return suggestions;
+    }
+  }
+
+  return suggestions;
+}
+
+type DraggableProjectCard = KanbanCard & {
+  projectTitle: string;
+  projectId: string;
+  projectColor: string;
+};
+
+function ProjectTaskDragSection({
+  cards,
+  status,
+  onDragStart,
+}: {
+  cards: DraggableProjectCard[];
+  status: "todo" | "blocked";
+  onDragStart: (event: React.DragEvent, card: DraggableProjectCard) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [projectId, setProjectId] = useState("all");
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const projectOptions = Array.from(
+    new Map(cards.map(card => [card.projectId, { id: card.projectId, title: card.projectTitle }])).values()
+  );
+  const filteredCards = cards.filter(card => {
+    const matchesProject = projectId === "all" || card.projectId === projectId;
+    const matchesSearch = !normalizedSearch
+      || (card.title || "").toLocaleLowerCase().includes(normalizedSearch)
+      || (card.description || "").toLocaleLowerCase().includes(normalizedSearch)
+      || (card.tags || []).some(tag => tag.toLocaleLowerCase().includes(normalizedSearch));
+    return matchesProject && matchesSearch;
+  });
+  const hasFilters = projectId !== "all" || search.length > 0;
+  const isBlocked = status === "blocked";
+  const sectionTitle = isBlocked ? "Project Blocked — drag to journal tasks" : "Project Todo — drag to journal tasks";
+
+  if (cards.length === 0) return null;
+
+  const clearFilters = () => {
+    setSearch("");
+    setProjectId("all");
+  };
+
+  return (
+    <Card className={`border-dashed border-2 ${isBlocked ? "border-red-500/30" : "border-zinc-700"}`}>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <CardTitle className="flex items-center gap-2.5 text-sm text-zinc-400">
+            <FolderKanban className={`w-4 h-4 ${isBlocked ? "text-red-400" : "text-amber-400"}`} />
+            {sectionTitle}
+            <span className="text-xs text-zinc-500 font-normal">
+              ({filteredCards.length}/{cards.length})
+            </span>
+          </CardTitle>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="relative min-w-0 sm:w-56">
+              <span className="sr-only">Search {status} project tasks</span>
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Find a ${status} task...`}
+                className="h-8 border-zinc-700 bg-zinc-900 pl-8 pr-8 text-xs text-zinc-200 placeholder:text-zinc-600"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label={`Clear ${status} task search`}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-zinc-200"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </label>
+            <label>
+              <span className="sr-only">Filter {status} tasks by project</span>
+              <select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                className="h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 text-xs text-zinc-300 outline-none transition-colors focus:border-blue-500 sm:w-44"
+              >
+                <option value="all">All projects</option>
+                {projectOptions.map(project => (
+                  <option key={project.id} value={project.id}>{project.title}</option>
+                ))}
+              </select>
+            </label>
+            {hasFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-8 px-2 text-xs text-zinc-500 hover:text-zinc-200"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {filteredCards.length > 0 ? (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {filteredCards.map(card => (
+              <div
+                key={`${card.projectId}-${card.id}`}
+                draggable
+                onDragStart={(event) => onDragStart(event, card)}
+                className={`shrink-0 w-64 p-3 rounded-lg bg-zinc-900 border border-zinc-700 cursor-grab active:cursor-grabbing transition-colors ${
+                  isBlocked ? "hover:border-red-400" : "hover:border-blue-400"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 truncate text-sm font-medium text-zinc-200">{card.title || "Untitled"}</p>
+                  {isBlocked && (
+                    <span className="shrink-0 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-red-400">
+                      Blocked
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: card.projectColor }} />
+                  <p className="truncate text-[10px] text-zinc-500">{card.projectTitle}</p>
+                </div>
+                {card.description && (
+                  <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-zinc-500">{card.description}</p>
+                )}
+                {(card.assignedTo || []).length > 0 && (
+                  <div className="flex gap-1 mt-2">
+                    {(card.assignedTo || []).slice(0, 2).map((personId: string) => (
+                      <span key={personId} className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400">
+                        assigned
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-900/40 px-4 py-7 text-center">
+            <p className="text-sm text-zinc-400">No project {status} tasks match these filters.</p>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="mt-1 text-xs text-blue-400 transition-colors hover:text-blue-300"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -158,6 +421,8 @@ export function JournalPage() {
   const dateKey = getDateString(currentDate);
   const { entries, updateEntry, projects, setProjects } = useData();
   const entry = entries[dateKey] || createEmptyEntry(dateKey);
+  const systemSuggestions = useMemo(() => collectTaskTextSuggestions(entries, "system"), [entries]);
+  const missionSuggestions = useMemo(() => collectTaskTextSuggestions(entries, "mission"), [entries]);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const save = useCallback(async (updates: Partial<DailyEntry>) => {
@@ -179,24 +444,32 @@ export function JournalPage() {
   const updateTask = (id: string, field: keyof Task, value: string | boolean) => {
     const task = entry.tasks.find(t => t.id === id);
     save({ tasks: entry.tasks.map((t) => t.id === id ? { ...t, [field]: value } : t) });
-    // If completing a task that was linked from a project card, move that card to done
-    if (field === 'completed' && value === true && task?.projectCardId) {
+    // Keep linked project cards in sync when a journal task is completed or reopened.
+    if (field === 'completed' && typeof value === "boolean" && task?.projectCardId) {
       const targetProject = projects.find(p => p.cards.some(c => c.id === task.projectCardId));
       if (targetProject) {
         setProjects((prev: Project[]) => prev.map((p: Project) => p.id === targetProject.id ? {
           ...p,
-          cards: p.cards.map((c: any) => c.id === task.projectCardId ? { ...c, columnId: 'done' as const } : c)
+          cards: p.cards.map(c => c.id === task.projectCardId
+            ? { ...c, columnId: value ? 'done' as const : 'in-progress' as const }
+            : c)
         } : p));
       }
     }
   };
   const removeTask = (id: string) => save({ tasks: entry.tasks.filter((t) => t.id !== id) });
 
-  // Drag and drop from project todo cards
-  const projectTodoCards = projects.flatMap(p => (p.cards || []).filter(c => c.columnId === 'todo').map(c => ({ ...c, projectTitle: p.title, projectId: p.id })));
+  // Drag and drop from project todo and blocked cards
+  const getProjectCards = (columnId: KanbanColumnId): DraggableProjectCard[] => projects.flatMap(p =>
+    (p.cards || [])
+      .filter(c => c.columnId === columnId)
+      .map(c => ({ ...c, projectTitle: p.title, projectId: p.id, projectColor: p.color }))
+  );
+  const projectTodoCards = getProjectCards("todo");
+  const projectBlockedCards = getProjectCards("blocked");
   const [dragOver, setDragOver] = useState(false);
 
-  const handleDragStart = (e: React.DragEvent, card: any) => {
+  const handleDragStart = (e: React.DragEvent, card: DraggableProjectCard) => {
     e.dataTransfer.setData('application/json', JSON.stringify(card));
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -205,8 +478,9 @@ export function JournalPage() {
     e.preventDefault();
     setDragOver(false);
     try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'));
-      if (data.columnId === 'todo') {
+      const data = JSON.parse(e.dataTransfer.getData('application/json')) as Partial<DraggableProjectCard>;
+      const canMoveToJournal = data.columnId === 'todo' || data.columnId === 'blocked';
+      if (canMoveToJournal && data.id && data.projectId && typeof data.title === "string") {
         // Create journal task from project card
         const newTask: Task = {
           id: crypto.randomUUID(),
@@ -219,12 +493,12 @@ export function JournalPage() {
           completed: false,
         };
         save({ tasks: [...entry.tasks, newTask] });
-        // Move project card to in-progress
+        // Todo and blocked project cards become in-progress when scheduled in the journal.
         const targetProject = projects.find(p => p.id === data.projectId);
         if (targetProject) {
           setProjects((prev: Project[]) => prev.map((p: Project) => p.id === data.projectId ? {
             ...p,
-            cards: p.cards.map((c: any) => c.id === data.id ? { ...c, columnId: 'in-progress' } : c)
+            cards: p.cards.map(c => c.id === data.id ? { ...c, columnId: 'in-progress' as const } : c)
           } : p));
         }
       }
@@ -289,39 +563,10 @@ export function JournalPage() {
       </div>
 
       {/* Project Todo Cards */}
-      {projectTodoCards.length > 0 && (
-        <Card className="border-dashed border-2 border-zinc-700">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2.5 text-sm text-zinc-400">
-              <FolderKanban className="w-4 h-4 text-amber-400" />
-              Project Todo — drag to journal tasks
-              <span className="text-xs text-zinc-500 font-normal">({projectTodoCards.length})</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {projectTodoCards.map((card) => (
-                <div
-                  key={card.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, card)}
-                  className="shrink-0 w-64 p-3 rounded-lg bg-zinc-900 border border-zinc-700 cursor-grab active:cursor-grabbing hover:border-blue-400 transition-colors"
-                >
-                  <p className="text-sm text-zinc-200 font-medium truncate">{card.title || 'Untitled'}</p>
-                  <p className="text-[10px] text-zinc-500 mt-1">{card.projectTitle}</p>
-                  {(card.assignedTo || []).length > 0 && (
-                    <div className="flex gap-1 mt-2">
-                      {(card.assignedTo || []).slice(0, 2).map((pid: string) => (
-                        <span key={pid} className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400">assigned</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <ProjectTaskDragSection cards={projectTodoCards} status="todo" onDragStart={handleDragStart} />
+
+      {/* Project Blocked Cards */}
+      <ProjectTaskDragSection cards={projectBlockedCards} status="blocked" onDragStart={handleDragStart} />
 
       {/* Tasks */}
       <Card className={`glow-blue-subtle ${dragOver ? 'ring-2 ring-blue-500' : ''}`}
@@ -364,8 +609,22 @@ export function JournalPage() {
                     </td>
                     <td><TaskField placeholder="Task description" value={t.task} onChange={(value) => updateTask(t.id, "task", value)} /></td>
                     <td><TaskField placeholder="Expected outcome" value={t.outcome} onChange={(value) => updateTask(t.id, "outcome", value)} /></td>
-                    <td><TaskField placeholder="System to follow" value={t.system} onChange={(value) => updateTask(t.id, "system", value)} /></td>
-                    <td><TaskField placeholder="Mission/purpose" value={t.mission} onChange={(value) => updateTask(t.id, "mission", value)} /></td>
+                    <td>
+                      <TaskField
+                        placeholder="System to follow"
+                        value={t.system}
+                        onChange={(value) => updateTask(t.id, "system", value)}
+                        suggestions={systemSuggestions}
+                      />
+                    </td>
+                    <td>
+                      <TaskField
+                        placeholder="Mission/purpose"
+                        value={t.mission}
+                        onChange={(value) => updateTask(t.id, "mission", value)}
+                        suggestions={missionSuggestions}
+                      />
+                    </td>
                     <td className="text-center">
                       <button onClick={() => removeTask(t.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                     </td>
