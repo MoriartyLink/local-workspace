@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { to: "/search", icon: Search, label: "Search" },
-  { to: "/meeting", icon: Calendar, label: "Meeting" },
-  { to: "/people", icon: Users, label: "People" },
+  { to: "/meeting", icon: Calendar, label: "Schedule" },
+  { to: "/people", icon: Users, label: "Connection" },
   { to: "/", icon: BookOpen, label: "Journal" },
-  { to: "/projects", icon: FolderKanban, label: "Projects" },
+  { to: "/projects", icon: FolderKanban, label: "Studio" },
   { to: "/history", icon: BarChart3, label: "History" },
 ];
 
