@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlignLeft,
   Bell,
+  Bot,
   CalendarDays,
   Check,
   ChevronDown,
@@ -9,21 +10,25 @@ import {
   ChevronRight,
   History,
   Lock,
+  Loader2,
   Plus,
   Repeat2,
   Search,
+  Send,
+  ShieldCheck,
   Star,
   Trash2,
   Users,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useData } from "@/contexts/DataContext";
 import type { Meeting, Person, Project } from "@/types";
+import type { TelegramReminderSettings } from "@/types/electron";
 
 type ScheduleView = "day" | "week" | "month" | "year";
 type ScheduleFilter = "all" | "upcoming" | "past";
@@ -105,6 +110,7 @@ const DURATION_OPTIONS = [
   { value: 240, label: "4 hours" },
 ];
 const REMINDER_OPTIONS = [
+  { value: 0, label: "At meeting time" },
   { value: 5, label: "5 min before" },
   { value: 10, label: "10 min before" },
   { value: 15, label: "15 min before" },
@@ -112,6 +118,221 @@ const REMINDER_OPTIONS = [
   { value: 60, label: "1 hour before" },
   { value: 1440, label: "1 day before" },
 ];
+
+function TelegramReminderSettingsPanel() {
+  const [settings, setSettings] = useState<TelegramReminderSettings>({
+    enabled: false,
+    chatId: "",
+    defaultReminderMinutes: 15,
+    botConfigured: false,
+    secureStorageAvailable: false,
+  });
+  const [botToken, setBotToken] = useState("");
+  const [chatId, setChatId] = useState("");
+  const [status, setStatus] = useState<"loading" | "idle" | "saving" | "testing" | "finding">("loading");
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const desktopAvailable = Boolean(window.electronAPI);
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api) {
+      setStatus("idle");
+      return;
+    }
+    let active = true;
+    void api.getTelegramReminderSettings()
+      .then(loaded => {
+        if (!active) return;
+        setSettings(loaded);
+        setChatId(loaded.chatId);
+        setStatus("idle");
+      })
+      .catch(() => {
+        if (!active) return;
+        setFeedback({ kind: "error", text: "Could not load Telegram settings." });
+        setStatus("idle");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const saveSettings = async () => {
+    const api = window.electronAPI;
+    if (!api) return;
+    if (settings.enabled && !chatId.trim()) {
+      setFeedback({ kind: "error", text: "Add or find a chat before enabling reminders." });
+      return;
+    }
+    if (settings.enabled && !settings.botConfigured && !botToken.trim()) {
+      setFeedback({ kind: "error", text: "Add a bot token before enabling reminders." });
+      return;
+    }
+    setStatus("saving");
+    setFeedback(null);
+    try {
+      const saved = await api.saveTelegramReminderSettings({
+        enabled: settings.enabled,
+        chatId,
+        defaultReminderMinutes: settings.defaultReminderMinutes,
+        botToken: botToken.trim() || undefined,
+      });
+      setSettings(saved);
+      setChatId(saved.chatId);
+      setBotToken("");
+      setFeedback({ kind: "success", text: "Telegram settings saved." });
+    } catch (error) {
+      setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Could not save Telegram settings." });
+    } finally {
+      setStatus("idle");
+    }
+  };
+
+  const findChat = async () => {
+    const api = window.electronAPI;
+    if (!api) return;
+    setStatus("finding");
+    setFeedback(null);
+    try {
+      const result = await api.findTelegramChat(botToken.trim() || undefined);
+      if (result.ok && result.chatId) {
+        setChatId(result.chatId);
+        setFeedback({ kind: "success", text: result.message });
+      } else {
+        setFeedback({ kind: "error", text: result.message });
+      }
+    } catch (error) {
+      setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Could not find a Telegram chat." });
+    } finally {
+      setStatus("idle");
+    }
+  };
+
+  const sendTest = async () => {
+    const api = window.electronAPI;
+    if (!api) return;
+    setStatus("testing");
+    setFeedback(null);
+    try {
+      const result = await api.testTelegramReminder(botToken.trim() || undefined, chatId.trim() || undefined);
+      setFeedback({ kind: result.ok ? "success" : "error", text: result.message });
+    } catch (error) {
+      setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Could not send a test reminder." });
+    } finally {
+      setStatus("idle");
+    }
+  };
+
+  const configured = settings.botConfigured || Boolean(botToken.trim());
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Bot className="h-4 w-4 text-[#B8CEE2]" />
+            Telegram reminders
+          </CardTitle>
+          <span className={`rounded-full px-2 py-1 text-[10px] ${
+            settings.enabled && configured && chatId
+              ? "bg-[#53589A]/35 text-[#DCE7F1]"
+              : "bg-zinc-800 text-zinc-500"
+          }`}>
+            {settings.enabled && configured && chatId ? "Active" : "Inactive"}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {!desktopAvailable ? (
+          <p className="rounded-lg border border-zinc-700 bg-zinc-950 p-3 text-xs text-zinc-400">
+            Available in the desktop app.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.4fr_1fr_0.8fr]">
+              <div>
+                <Label className="text-[10px] text-zinc-500">Bot token</Label>
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={botToken}
+                  onChange={event => setBotToken(event.target.value)}
+                  placeholder={settings.botConfigured ? "Saved — leave blank to keep" : "Token from @BotFather"}
+                  className="mt-1 h-9 bg-zinc-950 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-zinc-500">Chat ID</Label>
+                <Input
+                  value={chatId}
+                  onChange={event => setChatId(event.target.value)}
+                  placeholder="Find or enter chat ID"
+                  className="mt-1 h-9 bg-zinc-950 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-zinc-500">Default reminder</Label>
+                <select
+                  value={settings.defaultReminderMinutes}
+                  onChange={event => setSettings(current => ({
+                    ...current,
+                    defaultReminderMinutes: Number(event.target.value),
+                  }))}
+                  className="mt-1 h-9 w-full rounded-md border border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-300 outline-none"
+                >
+                  {REMINDER_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-3">
+              <button
+                type="button"
+                onClick={() => setSettings(current => ({ ...current, enabled: !current.enabled }))}
+                className="flex items-center gap-2 text-xs text-zinc-400"
+              >
+                <span className={`relative h-5 w-9 rounded-full transition-colors ${
+                  settings.enabled ? "bg-[#53589A]" : "bg-zinc-700"
+                }`}>
+                  <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                    settings.enabled ? "translate-x-[18px]" : "translate-x-0.5"
+                  }`} />
+                </span>
+                Enable
+              </button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={findChat} disabled={status !== "idle" || !configured}>
+                  {status === "finding" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                  Find chat
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={sendTest} disabled={status !== "idle" || !configured || !chatId.trim()}>
+                  {status === "testing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  Send test
+                </Button>
+                <Button type="button" size="sm" onClick={saveSettings} disabled={status !== "idle"}>
+                  {status === "saving" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Save
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+              <span className="flex items-center gap-1 text-zinc-600">
+                <ShieldCheck className="h-3 w-3" />
+                {settings.secureStorageAvailable ? "Token protected by system storage" : "Token stored in local app settings"}
+              </span>
+              {feedback && (
+                <span className={feedback.kind === "success" ? "text-emerald-400" : "text-red-400"}>
+                  {feedback.text}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function pad(value: number): string {
   return String(value).padStart(2, "0");
@@ -1403,6 +1624,7 @@ export function MeetingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
   const [importanceFilter, setImportanceFilter] = useState<"all" | "1" | "2" | "3" | "4" | "5">("all");
+  const [showTelegramSettings, setShowTelegramSettings] = useState(false);
 
   const filteredMeetings = useMemo(() => {
     const words = searchQuery.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
@@ -1554,8 +1776,20 @@ export function MeetingPage() {
             <Lock className="h-3.5 w-3.5 text-emerald-400" />
             Personal time
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowTelegramSettings(current => !current)}
+            size="sm"
+            aria-expanded={showTelegramSettings}
+            className="h-8 gap-1.5 border-zinc-700 text-xs text-zinc-300"
+          >
+            <Bot className="h-3.5 w-3.5 text-[#B8CEE2]" />
+            Telegram
+          </Button>
         </div>
       </div>
+
+      {showTelegramSettings && <TelegramReminderSettingsPanel />}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <label className="relative min-w-0 flex-1 sm:max-w-sm">

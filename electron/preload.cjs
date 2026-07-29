@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   loadAllMeetings: () => ipcRenderer.invoke("meetings:loadAll"),
   saveMeeting: (meeting) => ipcRenderer.invoke("meetings:save", meeting),
   deleteMeeting: (meetingId) => ipcRenderer.invoke("meetings:delete", meetingId),
+  getTelegramReminderSettings: () => ipcRenderer.invoke("telegram:getSettings"),
+  saveTelegramReminderSettings: (settings) => ipcRenderer.invoke("telegram:saveSettings", settings),
+  testTelegramReminder: (botToken, chatId) => ipcRenderer.invoke("telegram:test", botToken, chatId),
+  findTelegramChat: (botToken) => ipcRenderer.invoke("telegram:findChat", botToken),
 
   // People
   loadAllPeople: () => ipcRenderer.invoke("people:loadAll"),

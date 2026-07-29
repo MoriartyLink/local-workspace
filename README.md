@@ -24,7 +24,7 @@ Most productivity tools lock your notes and tasks inside a cloud account. Local 
 
 - **Journal** — daily entries with tasks, physical/mental status, and reflection prompts.
 - **Projects** — Kanban boards with milestones, priorities, and tags; cards completed in *Done* auto-archive to History after 24h.
-- **Meeting** — agenda, minutes, transcription, and participants.
+- **Meeting** — agenda, minutes, participants, and Telegram bot reminders.
 - **People** — contacts, relationships, goals, and a brainstorming whiteboard.
 - **Search** — full-text search across journals, projects, meetings, and people.
 - **History** — timeline of completed tasks and milestones.
@@ -37,6 +37,16 @@ Most productivity tools lock your notes and tasks inside a cloud account. Local 
 3. Use the sidebar to move between Journal, Projects, Meeting, People, Search, and History.
 4. **Back up / restore** with Export / Import in the sidebar (a JSON snapshot of the vault).
 5. Edit any `.md` file directly — the app picks up the change.
+
+### Telegram meeting reminders
+
+1. Create a Telegram bot with `@BotFather` and copy its bot token.
+2. Send the new bot a message from the Telegram chat that should receive reminders.
+3. In **Meetings → Telegram meeting reminders**, paste the token and select **Find chat**.
+4. Send a test, enable reminders, and save the settings.
+5. Turn on **Reminder** for a meeting and optionally choose when it should be sent.
+
+Local Workspace must be running at reminder time. Bot credentials stay in the desktop app settings and use operating-system encryption when Electron secure storage is available.
 
 Vault layout:
 

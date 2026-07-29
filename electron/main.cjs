@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, globalShortcut } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, globalShortcut, safeStorage } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -15,17 +15,21 @@ function getSettingsPath() {
   return path.join(app.getPath("userData"), "settings.json");
 }
 
-function loadSettings() {
+function readSettings() {
   try {
     const data = fs.readFileSync(getSettingsPath(), "utf-8");
-    const settings = JSON.parse(data);
-    if (settings.vaultPath && fs.existsSync(settings.vaultPath)) {
-      vaultPath = settings.vaultPath;
-    }
-    return settings;
+    return JSON.parse(data);
   } catch {
     return {};
   }
+}
+
+function loadSettings() {
+  const settings = readSettings();
+  if (settings.vaultPath && fs.existsSync(settings.vaultPath)) {
+    vaultPath = settings.vaultPath;
+  }
+  return settings;
 }
 
 function saveSettings(settings) {
@@ -290,6 +294,208 @@ function safeFilename(str) {
   return str.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 80);
 }
 
+// ── Telegram meeting reminders ──
+const DEFAULT_REMINDER_MINUTES = 15;
+let reminderTimer = null;
+let reminderCheckRunning = false;
+
+function normalizeReminderMinutes(value, fallback = DEFAULT_REMINDER_MINUTES) {
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes)) return fallback;
+  return Math.min(10080, Math.max(0, Math.round(minutes)));
+}
+
+function getStoredTelegramToken(settings = readSettings()) {
+  const telegram = settings.telegram || {};
+  if (telegram.botTokenEncrypted && safeStorage.isEncryptionAvailable()) {
+    try {
+      return safeStorage.decryptString(Buffer.from(telegram.botTokenEncrypted, "base64"));
+    } catch (err) {
+      console.error("Could not decrypt the Telegram bot token:", err.message);
+    }
+  }
+  return typeof telegram.botToken === "string" ? telegram.botToken : "";
+}
+
+function hasProtectedSafeStorage() {
+  if (!safeStorage.isEncryptionAvailable()) return false;
+  if (process.platform !== "linux" || typeof safeStorage.getSelectedStorageBackend !== "function") return true;
+  try {
+    return safeStorage.getSelectedStorageBackend() !== "basic_text";
+  } catch {
+    return false;
+  }
+}
+
+function telegramSettingsForRenderer(settings = readSettings()) {
+  const telegram = settings.telegram || {};
+  return {
+    enabled: telegram.enabled === true,
+    chatId: typeof telegram.chatId === "string" ? telegram.chatId : "",
+    defaultReminderMinutes: normalizeReminderMinutes(telegram.defaultReminderMinutes),
+    botConfigured: Boolean(getStoredTelegramToken(settings)),
+    secureStorageAvailable: hasProtectedSafeStorage(),
+  };
+}
+
+function validateBotToken(botToken) {
+  return typeof botToken === "string" && /^\d+:[A-Za-z0-9_-]{20,}$/.test(botToken.trim());
+}
+
+async function telegramRequest(botToken, method, payload = {}) {
+  if (!validateBotToken(botToken)) {
+    throw new Error("Enter a valid Telegram bot token from @BotFather.");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken.trim()}/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.ok) {
+      throw new Error(result?.description || `Telegram request failed (${response.status}).`);
+    }
+    return result.result;
+  } catch (err) {
+    if (err?.name === "AbortError") throw new Error("Telegram did not respond in time.");
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function sendTelegramMessage(botToken, chatId, text) {
+  if (!String(chatId || "").trim()) {
+    throw new Error("Enter or discover a Telegram chat ID.");
+  }
+  return telegramRequest(botToken, "sendMessage", {
+    chat_id: String(chatId).trim(),
+    text,
+  });
+}
+
+function loadMeetingsFromVault() {
+  const dir = path.join(vaultPath, "meetings");
+  if (!fs.existsSync(dir)) return [];
+  const list = [];
+  for (const file of fs.readdirSync(dir).filter(f => f.endsWith(".md"))) {
+    try {
+      list.push(parseMeetingMd(fs.readFileSync(path.join(dir, file), "utf-8")));
+    } catch (err) {
+      console.error(`Failed to parse meetings/${file}:`, err.message);
+    }
+  }
+  return list.sort((a, b) =>
+    (a.date || "").localeCompare(b.date || "") || (a.time || "").localeCompare(b.time || "")
+  );
+}
+
+function formatReminderLead(minutes) {
+  if (minutes === 0) return "starting now";
+  if (minutes < 60) return `in ${minutes} minute${minutes === 1 ? "" : "s"}`;
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return `in ${days} day${days === 1 ? "" : "s"}`;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `in ${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+  return `in ${minutes} minutes`;
+}
+
+function buildMeetingReminderMessage(meeting, reminderMinutes) {
+  const meetingDate = new Date(`${meeting.date}T${meeting.time || "00:00"}`);
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(meetingDate);
+  const lines = [
+    "⏰ Meeting reminder",
+    "",
+    meeting.title || "Untitled Meeting",
+    `Starts ${formatReminderLead(reminderMinutes)}`,
+    formattedDate,
+  ];
+  const agenda = String(meeting.agenda || "").trim().replace(/\s+/g, " ");
+  if (agenda) lines.push("", `Agenda: ${agenda.slice(0, 300)}`);
+  return lines.join("\n");
+}
+
+function meetingReminderKey(meeting, reminderMinutes) {
+  return `${meeting.id}:${meeting.date}T${meeting.time}:${reminderMinutes}`;
+}
+
+async function checkMeetingReminders() {
+  if (reminderCheckRunning) return;
+  reminderCheckRunning = true;
+  try {
+    const settings = readSettings();
+    const telegram = settings.telegram || {};
+    const botToken = getStoredTelegramToken(settings);
+    const chatId = String(telegram.chatId || "").trim();
+    if (telegram.enabled !== true || !botToken || !chatId) return;
+
+    const now = Date.now();
+    const sentKeys = new Set(Array.isArray(telegram.sentReminderKeys) ? telegram.sentReminderKeys : []);
+    for (const meeting of loadMeetingsFromVault()) {
+      if (!meeting.reminder || !meeting.date || !meeting.time) continue;
+      const meetingTime = new Date(`${meeting.date}T${meeting.time}`).getTime();
+      if (!Number.isFinite(meetingTime)) continue;
+      const reminderMinutes = normalizeReminderMinutes(
+        meeting.reminderMinutes,
+        normalizeReminderMinutes(telegram.defaultReminderMinutes),
+      );
+      const reminderTime = meetingTime - reminderMinutes * 60_000;
+      const key = meetingReminderKey(meeting, reminderMinutes);
+      const isDue = now >= reminderTime && now <= meetingTime + 60_000;
+      if (!isDue || sentKeys.has(key)) continue;
+
+      try {
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          buildMeetingReminderMessage(meeting, reminderMinutes),
+        );
+        sentKeys.add(key);
+        const latestSettings = readSettings();
+        const latestTelegram = latestSettings.telegram || {};
+        const latestKeys = new Set(
+          Array.isArray(latestTelegram.sentReminderKeys) ? latestTelegram.sentReminderKeys : [],
+        );
+        latestKeys.add(key);
+        saveSettings({
+          ...latestSettings,
+          telegram: {
+            ...latestTelegram,
+            sentReminderKeys: Array.from(latestKeys).slice(-200),
+          },
+        });
+      } catch (err) {
+        console.error(`Telegram reminder failed for meeting ${meeting.id}:`, err.message);
+      }
+    }
+  } finally {
+    reminderCheckRunning = false;
+  }
+}
+
+function startReminderScheduler() {
+  if (reminderTimer) clearInterval(reminderTimer);
+  void checkMeetingReminders();
+  reminderTimer = setInterval(() => void checkMeetingReminders(), 30_000);
+}
+
 // ── File watcher ──
 function startWatcher() {
   if (watcher) {
@@ -518,6 +724,7 @@ app.whenReady().then(() => {
   buildAppMenu();
   createWindow();
   startWatcher();
+  startReminderScheduler();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -527,6 +734,10 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (watcher) watcher.close();
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  if (reminderTimer) clearInterval(reminderTimer);
 });
 
 // ── IPC Handlers ──
@@ -542,9 +753,10 @@ ipcMain.handle("vault:changePath", async () => {
   });
   if (!result.canceled && result.filePaths[0]) {
     vaultPath = result.filePaths[0];
-    saveSettings({ vaultPath });
+    saveSettings({ ...readSettings(), vaultPath });
     ensureVault();
     startWatcher(); // Restart watcher for new vault
+    void checkMeetingReminders();
     return vaultPath;
   }
   return null;
@@ -628,18 +840,7 @@ ipcMain.handle("projects:delete", (_event, projectId) => {
 
 // ── Meetings ──
 ipcMain.handle("meetings:loadAll", () => {
-  const dir = path.join(vaultPath, "meetings");
-  if (!fs.existsSync(dir)) return [];
-  const files = fs.readdirSync(dir).filter(f => f.endsWith(".md"));
-  const list = [];
-  for (const file of files) {
-    try {
-      list.push(parseMeetingMd(fs.readFileSync(path.join(dir, file), "utf-8")));
-    } catch (err) {
-      console.error(`Failed to parse meetings/${file}:`, err.message);
-    }
-  }
-  return list.sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.time || "").localeCompare(b.time || ""));
+  return loadMeetingsFromVault();
 });
 
 ipcMain.handle("meetings:save", (_event, meeting) => {
@@ -647,6 +848,7 @@ ipcMain.handle("meetings:save", (_event, meeting) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const filename = `${safeFilename(meeting.id)}.md`;
   fs.writeFileSync(path.join(dir, filename), buildMeetingMd(meeting), "utf-8");
+  void checkMeetingReminders();
   return true;
 });
 
@@ -656,6 +858,82 @@ ipcMain.handle("meetings:delete", (_event, meetingId) => {
   const filePath = path.join(dir, filename);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   return true;
+});
+
+ipcMain.handle("telegram:getSettings", () => telegramSettingsForRenderer());
+
+ipcMain.handle("telegram:saveSettings", (_event, update) => {
+  const currentSettings = readSettings();
+  const currentTelegram = currentSettings.telegram || {};
+  const nextTelegram = {
+    ...currentTelegram,
+    enabled: update?.enabled === true,
+    chatId: String(update?.chatId || "").trim().slice(0, 100),
+    defaultReminderMinutes: normalizeReminderMinutes(update?.defaultReminderMinutes),
+  };
+  const newToken = typeof update?.botToken === "string" ? update.botToken.trim() : "";
+  if (newToken) {
+    if (!validateBotToken(newToken)) throw new Error("Enter a valid Telegram bot token from @BotFather.");
+    if (safeStorage.isEncryptionAvailable()) {
+      nextTelegram.botTokenEncrypted = safeStorage.encryptString(newToken).toString("base64");
+      delete nextTelegram.botToken;
+    } else {
+      nextTelegram.botToken = newToken;
+      delete nextTelegram.botTokenEncrypted;
+    }
+  }
+  saveSettings({ ...currentSettings, telegram: nextTelegram });
+  void checkMeetingReminders();
+  return telegramSettingsForRenderer();
+});
+
+ipcMain.handle("telegram:test", async (_event, tokenOverride, chatIdOverride) => {
+  try {
+    const settings = readSettings();
+    const botToken = String(tokenOverride || "").trim() || getStoredTelegramToken(settings);
+    const chatId = String(chatIdOverride || "").trim() || String(settings.telegram?.chatId || "").trim();
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      `✅ Local Workspace Telegram reminders are connected.\n\nTest sent ${new Date().toLocaleString()}.`,
+    );
+    return { ok: true, message: "Test reminder sent to Telegram." };
+  } catch (err) {
+    return { ok: false, message: err.message || "Could not send the Telegram test reminder." };
+  }
+});
+
+ipcMain.handle("telegram:findChat", async (_event, tokenOverride) => {
+  try {
+    const settings = readSettings();
+    const botToken = String(tokenOverride || "").trim() || getStoredTelegramToken(settings);
+    const updates = await telegramRequest(botToken, "getUpdates", {
+      limit: 100,
+      timeout: 0,
+      allowed_updates: ["message", "channel_post", "my_chat_member"],
+    });
+    const latestChat = [...updates].reverse().map(update =>
+      update.message?.chat || update.channel_post?.chat || update.my_chat_member?.chat
+    ).find(Boolean);
+    if (!latestChat) {
+      return {
+        ok: false,
+        message: "No chat found. Send your bot a message in Telegram, then try again.",
+      };
+    }
+    const title = latestChat.title
+      || [latestChat.first_name, latestChat.last_name].filter(Boolean).join(" ")
+      || latestChat.username
+      || "Telegram chat";
+    return {
+      ok: true,
+      message: `Found ${title}.`,
+      chatId: String(latestChat.id),
+      chatTitle: title,
+    };
+  } catch (err) {
+    return { ok: false, message: err.message || "Could not discover a Telegram chat." };
+  }
 });
 
 // ── People ──
