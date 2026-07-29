@@ -198,11 +198,21 @@ function buildMeetingMd(meeting) {
     title: meeting.title || "",
     date: meeting.date || "",
     time: meeting.time || "",
+    durationMinutes: Number.isFinite(meeting.durationMinutes) ? meeting.durationMinutes : 60,
+    accent: meeting.accent || "blue",
+    importance: Number.isFinite(meeting.importance)
+      ? Math.min(5, Math.max(1, Math.round(meeting.importance)))
+      : 2,
+    kind: meeting.kind || "meeting",
+    personalCategory: meeting.personalCategory || "",
+    recurrenceGroupId: meeting.recurrenceGroupId || "",
     reminder: meeting.reminder || false,
+    reminderMinutes: Number.isFinite(meeting.reminderMinutes) ? meeting.reminderMinutes : 15,
     agenda: meeting.agenda || "",
     minutes: meeting.minutes || "",
     transcription: meeting.transcription || "",
     participants: meeting.participants || [],
+    relatedProjectId: meeting.relatedProjectId || "",
     createdAt: meeting.createdAt || new Date().toISOString(),
   };
   return buildFrontmatter(meta);
@@ -215,11 +225,21 @@ function parseMeetingMd(content) {
     title: meta.title || "",
     date: meta.date || "",
     time: meta.time || "",
+    durationMinutes: Number.isFinite(Number(meta.durationMinutes)) ? Number(meta.durationMinutes) : 60,
+    accent: meta.accent || "blue",
+    importance: Number.isFinite(Number(meta.importance))
+      ? Math.min(5, Math.max(1, Math.round(Number(meta.importance))))
+      : 2,
+    kind: meta.kind === "personal" ? "personal" : "meeting",
+    personalCategory: meta.personalCategory || undefined,
+    recurrenceGroupId: meta.recurrenceGroupId || undefined,
     reminder: meta.reminder === true || meta.reminder === "true",
+    reminderMinutes: Number.isFinite(Number(meta.reminderMinutes)) ? Number(meta.reminderMinutes) : 15,
     agenda: meta.agenda || "",
     minutes: meta.minutes || "",
     transcription: meta.transcription || "",
     participants: (meta.participants || []).map(p => typeof p === "string" ? p : String(p)),
+    relatedProjectId: meta.relatedProjectId || undefined,
     createdAt: meta.createdAt || "",
   };
 }
