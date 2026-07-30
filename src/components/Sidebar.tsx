@@ -3,6 +3,7 @@ import { BookOpen, FolderKanban, BarChart3, Search, HardDrive, FolderOpen, Panel
 import { useData } from "@/contexts/DataContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { Button } from "@/components/ui/button";
+import logoUrl from "@/assets/logo.png";
 
 const navItems = [
   { to: "/search", icon: Search, label: "Search" },
@@ -40,7 +41,10 @@ export function Sidebar() {
             </div>
           ) : (
               <div className="flex w-full items-center justify-between">
-                <h1 className="truncate text-[15px] font-semibold tracking-[-0.025em] text-[#EAF2FA]">Local Workspace</h1>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <img src={logoUrl} alt="" className="h-8 w-8 shrink-0 rounded-[9px] object-cover" />
+                  <h1 className="truncate text-[15px] font-semibold tracking-[-0.025em] text-[#EAF2FA]">Local Workspace</h1>
+                </div>
                 <button
                   onClick={() => setCollapsed(true)}
                   className="ml-1 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[#758399] transition-colors hover:bg-[#B8CEE2]/[0.07] hover:text-[#EAF2FA]"

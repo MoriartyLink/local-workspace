@@ -708,6 +708,9 @@ function buildAppMenu() {
 let mainWindow;
 
 function createWindow() {
+  const appIconPath = app.isPackaged
+    ? path.join(__dirname, "..", "dist", "logo.png")
+    : path.join(__dirname, "..", "public", "logo.png");
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -722,7 +725,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    icon: path.join(__dirname, "..", "public", "icon.png"),
+    icon: appIconPath,
   });
 
   // Load from Vite dev server or built files

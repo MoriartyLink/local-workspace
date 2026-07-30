@@ -1,6 +1,6 @@
 appId: com.localworkspace.app
 productName: Local Workspace
-icon: public/icon.png
+icon: public/logo.png
 
 # Explicitly include the built web bundle (dist/) and electron main process.
 # Without this, electron-builder skips `dist/` because it is listed in .gitignore,

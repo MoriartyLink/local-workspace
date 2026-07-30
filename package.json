@@ -1,7 +1,7 @@
 {
   "name": "local-workspace",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Local-first desktop workspace for journals, projects, meetings, and people management",
   "author": "MoriartyLink <dev@localworkspace.app>",
   "license": "MIT",

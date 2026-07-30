@@ -54,6 +54,8 @@ interface PersonalTimeDraft {
 const SLOT_MINUTES = 30;
 const SLOT_COUNT = (24 * 60) / SLOT_MINUTES;
 const SLOT_HEIGHT = 34;
+const HOLD_TO_DRAG_MS = 650;
+const HOLD_MOVE_TOLERANCE_PX = 14;
 const VIEW_OPTIONS: { value: ScheduleView; label: string }[] = [
   { value: "day", label: "Day" },
   { value: "week", label: "Week" },
@@ -540,7 +542,13 @@ function useLongPressMove(
   const releasePointer = () => {
     const element = elementRef.current;
     const pointerId = pointerIdRef.current;
-    if (element && pointerId !== null && element.hasPointerCapture(pointerId)) {
+    if (
+      element
+      && pointerId !== null
+      && typeof element.hasPointerCapture === "function"
+      && element.hasPointerCapture(pointerId)
+      && typeof element.releasePointerCapture === "function"
+    ) {
       element.releasePointerCapture(pointerId);
     }
   };
@@ -559,16 +567,19 @@ function useLongPressMove(
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     event.stopPropagation();
+    clearTimer();
     pointerIdRef.current = event.pointerId;
     originRef.current = { x: event.clientX, y: event.clientY };
     elementRef.current = event.currentTarget;
     activeRef.current = false;
     setHolding(true);
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (typeof event.currentTarget.setPointerCapture === "function") {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
     timerRef.current = setTimeout(() => {
       activeRef.current = true;
       setDragging(true);
-    }, 650);
+    }, HOLD_TO_DRAG_MS);
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -577,7 +588,7 @@ function useLongPressMove(
       event.clientX - originRef.current.x,
       event.clientY - originRef.current.y,
     );
-    if (!activeRef.current && distance > 8) {
+    if (!activeRef.current && distance > HOLD_MOVE_TOLERANCE_PX) {
       releasePointer();
       resetGesture();
     } else if (activeRef.current) {
@@ -647,15 +658,23 @@ function MovableMeetingCard({
       aria-label={meeting.title || "Untitled meeting"}
       data-schedule-date={meeting.date}
       data-schedule-time={meeting.time || "09:00"}
+      data-drag-state={dragging ? "dragging" : holding ? "holding" : "idle"}
       onClick={event => handleClick(event, onSelect)}
+      onContextMenu={event => event.preventDefault()}
+      onDragStart={event => event.preventDefault()}
       {...pointerHandlers}
       className={`relative cursor-grab select-none overflow-hidden ${className} ${
         dragging ? "z-30 cursor-grabbing opacity-75 ring-1 ring-white/50" : ""
       }`}
-      style={{ ...style, touchAction: dragging ? "none" : "auto" }}
+      style={{ ...style, touchAction: "none" }}
     >
       {children}
-      {holding && !dragging && <span className="schedule-hold-progress absolute inset-x-0 bottom-0 h-0.5 bg-white/70" />}
+      {holding && !dragging && (
+        <span
+          data-testid="meeting-hold-progress"
+          className="schedule-hold-progress pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1 bg-[linear-gradient(90deg,#53589A,#B8CEE2)] shadow-[0_0_10px_rgba(184,206,226,0.65)]"
+        />
+      )}
     </button>
   );
 }

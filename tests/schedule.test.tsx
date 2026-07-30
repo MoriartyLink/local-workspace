@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { DataProvider } from "@/contexts/DataContext";
 import { MeetingPage } from "@/pages/MeetingPage";
 
@@ -71,5 +71,53 @@ describe("Schedule planner", () => {
     expect(saved.length).toBeGreaterThan(1);
     expect(saved.every((meeting: { kind: string }) => meeting.kind === "personal")).toBe(true);
     expect(new Set(saved.map((meeting: { recurrenceGroupId: string }) => meeting.recurrenceGroupId)).size).toBe(1);
+  });
+
+  it("shows hold progress before enabling meeting-card drag", () => {
+    const now = new Date();
+    const date = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    ].join("-");
+    localStorage.setItem("local-workspace-meetings", JSON.stringify([{
+      id: "drag-test",
+      title: "Drag test",
+      date,
+      time: "09:00",
+      durationMinutes: 60,
+      accent: "violet",
+      importance: 2,
+      reminder: false,
+      agenda: "",
+      minutes: "",
+      participants: [],
+      createdAt: new Date().toISOString(),
+    }]));
+
+    vi.useFakeTimers();
+    const view = renderSchedule();
+    try {
+      const card = screen.getByRole("button", { name: "Drag test" });
+      Object.assign(card, {
+        setPointerCapture: vi.fn(),
+        hasPointerCapture: vi.fn(() => true),
+        releasePointerCapture: vi.fn(),
+      });
+
+      fireEvent.pointerDown(card, { button: 0, pointerId: 1, clientX: 20, clientY: 20 });
+
+      expect(card).toHaveAttribute("data-drag-state", "holding");
+      expect(within(card).getByTestId("meeting-hold-progress")).toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(650));
+
+      expect(card).toHaveAttribute("data-drag-state", "dragging");
+      expect(within(card).queryByTestId("meeting-hold-progress")).not.toBeInTheDocument();
+    } finally {
+      view.unmount();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 });

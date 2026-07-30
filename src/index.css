@@ -3,7 +3,7 @@
 @theme {
   --color-background: #161823;
   --color-foreground: #EAF2FA;
-  --color-card: #202232;
+  --color-card: #0B0C12;
   --color-card-foreground: #EAF2FA;
   --color-primary: #53589A;
   --color-primary-foreground: #FFFFFF;
@@ -244,8 +244,11 @@
 }
 
 .schedule-hold-progress {
+  width: 100%;
+  border-radius: 999px;
   transform-origin: left;
   animation: scheduleHold 650ms linear forwards;
+  will-change: transform;
 }
 
 .break-words {
@@ -434,5 +437,9 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .schedule-hold-progress {
+    animation-duration: 650ms !important;
   }
 }
