@@ -441,6 +441,38 @@ export function JournalPage() {
   }, [dateKey, entry, updateEntry]);
 
   const addTask = () => save({ tasks: [...entry.tasks, createEmptyTask()] });
+  const addTaskToProject = (taskId: string, projectId: string) => {
+    const task = entry.tasks.find((candidate) => candidate.id === taskId);
+    const project = projects.find((candidate) => candidate.id === projectId && !candidate.archived);
+    if (!task || task.projectCardId || !task.task.trim() || !project) return;
+
+    const cardId = crypto.randomUUID();
+    const card: KanbanCard = {
+      id: cardId,
+      title: task.task.trim(),
+      description: task.outcome.trim(),
+      columnId: "in-progress",
+      priority: "medium",
+      tags: [],
+      dueDate: dateKey,
+      createdAt: new Date().toISOString(),
+      completedAt: "",
+      order: project.cards.filter((candidate) => candidate.columnId === "in-progress").length,
+      assignedTo: task.assignedTo || [],
+      relatedMeetingId: "",
+    };
+
+    setProjects((previousProjects: Project[]) => previousProjects.map((candidate) =>
+      candidate.id === projectId
+        ? { ...candidate, cards: [...(candidate.cards || []), card] }
+        : candidate
+    ));
+    save({
+      tasks: entry.tasks.map((candidate) =>
+        candidate.id === taskId ? { ...candidate, projectCardId: cardId } : candidate
+      ),
+    });
+  };
   const updateTask = (id: string, field: keyof Task, value: string | boolean) => {
     const task = entry.tasks.find(t => t.id === id);
     save({ tasks: entry.tasks.map((t) => t.id === id ? { ...t, [field]: value } : t) });
@@ -470,6 +502,7 @@ export function JournalPage() {
   );
   const projectTodoCards = getProjectCards("todo");
   const projectBlockedCards = getProjectCards("blocked");
+  const activeProjects = projects.filter((project) => !project.archived);
   const [dragOver, setDragOver] = useState(false);
 
   const handleDragStart = (e: React.DragEvent, card: DraggableProjectCard) => {
@@ -596,12 +629,13 @@ export function JournalPage() {
                   <th>Expected Outcome</th>
                   <th>System</th>
                   <th>Mission</th>
+                  <th className="min-w-40">Project</th>
                   <th className="w-12"></th>
                 </tr>
               </thead>
               <tbody>
                 {entry.tasks.length === 0 && (
-                  <tr><td colSpan={6} className="text-center text-zinc-500 text-sm py-8">No tasks yet. Click "Add Task" to start.</td></tr>
+                  <tr><td colSpan={7} className="text-center text-zinc-500 text-sm py-8">No tasks yet. Click "Add Task" to start.</td></tr>
                 )}
                 {entry.tasks.map((t) => (
                   <tr key={t.id} className={`group ${t.completed ? "opacity-50" : ""}`}>
@@ -627,6 +661,39 @@ export function JournalPage() {
                         onChange={(value) => updateTask(t.id, "mission", value)}
                         suggestions={missionSuggestions}
                       />
+                    </td>
+                    <td>
+                      {(() => {
+                        const linkedProject = t.projectCardId
+                          ? projects.find((project) => project.cards.some((card) => card.id === t.projectCardId))
+                          : undefined;
+
+                        if (linkedProject) {
+                          return (
+                            <div className="flex items-center gap-2 text-xs text-zinc-400">
+                              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: linkedProject.color }} />
+                              <span className="truncate" title={linkedProject.title}>{linkedProject.title}</span>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <select
+                            value=""
+                            onChange={(event) => addTaskToProject(t.id, event.target.value)}
+                            disabled={!t.task.trim() || activeProjects.length === 0}
+                            aria-label={`Add ${t.task.trim() || "task"} to project`}
+                            className="h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-400 outline-none transition-colors hover:border-zinc-600 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="">
+                              {activeProjects.length === 0 ? "No active projects" : "Add to project…"}
+                            </option>
+                            {activeProjects.map((project) => (
+                              <option key={project.id} value={project.id}>{project.title || "Untitled project"}</option>
+                            ))}
+                          </select>
+                        );
+                      })()}
                     </td>
                     <td className="text-center">
                       <button onClick={() => removeTask(t.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
