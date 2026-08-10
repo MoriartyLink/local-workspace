@@ -717,9 +717,8 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: "#000000",
-    titleBarStyle: "hiddenInset",
-    frame: process.platform === "darwin" ? false : true,
-    trafficLightPosition: { x: 16, y: 16 },
+    frame: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -743,7 +742,7 @@ function createWindow() {
 app.whenReady().then(() => {
   loadSettings();
   ensureVault();
-  buildAppMenu();
+  Menu.setApplicationMenu(null);
   createWindow();
   startWatcher();
   startReminderScheduler();

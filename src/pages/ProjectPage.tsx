@@ -13,11 +13,13 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useData } from "@/contexts/DataContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { getLocalDateKey } from "@/lib/dates";
+import { getProjectIteration } from "@/lib/projectIterations";
 import type { Project, KanbanCard, Milestone, KanbanColumnId, Person, HistoryEntry } from "@/types";
 import { KANBAN_COLUMNS, PROJECT_COLORS } from "@/types";
 
 function createProject(title = "", description = ""): Project {
-  return { id: crypto.randomUUID(), title, description, color: PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)], milestones: [], cards: [], history: [], createdAt: new Date().toISOString(), archived: false };
+  return { id: crypto.randomUUID(), title, description, startDate: getLocalDateKey(new Date()), color: PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)], milestones: [], cards: [], history: [], createdAt: new Date().toISOString(), archived: false };
 }
 function createCard(columnId: KanbanColumnId, order: number): KanbanCard {
   return { id: crypto.randomUUID(), title: "", description: "", columnId, priority: "medium", tags: [], dueDate: "", createdAt: new Date().toISOString(), completedAt: "", order, assignedTo: [], relatedMeetingId: "" };
@@ -32,6 +34,25 @@ const PRIORITY_CONFIG = {
   high: { label: "High", bg: "bg-amber-500/15", text: "text-amber-400" },
   urgent: { label: "Urgent", bg: "bg-red-500/15", text: "text-red-400" },
 };
+
+function ProjectIterationBadge({ project, compact = false }: { project: Project; compact?: boolean }) {
+  const iteration = getProjectIteration(project.startDate, getLocalDateKey(new Date()));
+  if (!iteration) {
+    return <span className="text-[10px] text-zinc-500">Set a start date</span>;
+  }
+  if (iteration.status === "upcoming") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[10px] text-amber-400">
+        <Calendar className="h-3 w-3" />Starts in {iteration.daysUntilStart} {iteration.daysUntilStart === 1 ? "day" : "days"}
+      </span>
+    );
+  }
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-md bg-violet-500/10 text-violet-300 ${compact ? "px-2 py-1 text-[10px]" : "px-2.5 py-1.5 text-xs"}`}>
+      <Calendar className="h-3 w-3" />Iteration {iteration.iteration}<span className="text-violet-500">·</span>Week {iteration.week} of 6
+    </span>
+  );
+}
 
 
 
@@ -208,6 +229,7 @@ function ProjectDetail({ project, onUpdate, onBack }: { project: Project; onUpda
           </div>
         ) : <h2 className="text-xl font-bold text-zinc-100 cursor-pointer hover:text-blue-400 transition-colors" onClick={() => setEditingInfo(true)}>{project.title || "Untitled Project"}</h2>}
         <div className="ml-auto flex items-center gap-3 text-xs text-zinc-400">
+          <ProjectIterationBadge project={project} />
           <span>{done}/{total} done</span><div className="w-24"><Progress value={pct} /></div><span className="text-blue-400 font-mono">{pct}%</span>
         </div>
       </div>
@@ -215,6 +237,17 @@ function ProjectDetail({ project, onUpdate, onBack }: { project: Project; onUpda
       {editingInfo && (
         <Card className="slide-in-left"><CardContent className="p-4 space-y-3">
           <div><Label className="text-xs">Description</Label><Textarea value={project.description} onChange={(e) => onUpdate({ description: e.target.value })} placeholder="What is this project about?" className="mt-1 min-h-[60px] text-sm" /></div>
+          <div className="max-w-xs">
+            <Label htmlFor={`project-start-${project.id}`} className="text-xs">Project start date</Label>
+            <Input
+              id={`project-start-${project.id}`}
+              type="date"
+              value={project.startDate || ""}
+              onChange={(e) => onUpdate({ startDate: e.target.value })}
+              className="mt-1 h-9 text-xs"
+            />
+            <p className="mt-1 text-[10px] text-zinc-500">Each iteration is six weeks from this date.</p>
+          </div>
           <div><Label className="text-xs">Color</Label><div className="flex gap-2 mt-1.5">
             {PROJECT_COLORS.map((c) => <button key={c} onClick={() => onUpdate({ color: c })} className={`w-7 h-7 rounded-lg cursor-pointer transition-all duration-200 ${project.color === c ? "ring-2 ring-zinc-300 ring-offset-2 scale-110" : "hover:scale-110"}`} style={{ backgroundColor: c }} />)}
           </div></div>
@@ -350,6 +383,7 @@ function ProjectList({ onSelect, onAdd }: { onSelect: (id: string) => void; onAd
                     <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
                   </div>
                   {project.description && <p className="text-xs text-zinc-400 line-clamp-2">{project.description}</p>}
+                  <ProjectIterationBadge project={project} compact />
                   <div className="flex items-center gap-4 text-xs text-zinc-400"><span>{total} cards</span><span>{msDone}/{project.milestones.length} milestones</span></div>
                   <div className="space-y-1.5"><div className="flex justify-between text-xs"><span className="text-zinc-400">Progress</span><span className="text-blue-400 font-mono">{pct}%</span></div><Progress value={pct} /></div>
                   <button onClick={(e) => { e.stopPropagation(); archive(project.id); }} className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer flex items-center gap-1 mt-1"><Archive className="w-3 h-3" />Archive</button>

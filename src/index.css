@@ -97,6 +97,14 @@
     color-scheme: dark;
   }
 
+  .window-drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .window-controls {
+    -webkit-app-region: no-drag;
+  }
+
   input[type="date"]::-webkit-calendar-picker-indicator,
   input[type="time"]::-webkit-calendar-picker-indicator {
     opacity: 0.55;

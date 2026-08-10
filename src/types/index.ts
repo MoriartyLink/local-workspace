@@ -84,6 +84,7 @@ export interface Project {
   id: string;
   title: string;
   description: string;
+  startDate?: string; // ISO date string YYYY-MM-DD; optional for projects created before iteration tracking
   color: string; // hex color for accent
   milestones: Milestone[];
   cards: KanbanCard[];

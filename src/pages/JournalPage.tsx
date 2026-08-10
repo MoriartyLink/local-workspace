@@ -444,6 +444,18 @@ export function JournalPage() {
   const updateTask = (id: string, field: keyof Task, value: string | boolean) => {
     const task = entry.tasks.find(t => t.id === id);
     save({ tasks: entry.tasks.map((t) => t.id === id ? { ...t, [field]: value } : t) });
+    // Keep the Studio card useful when its title or description is edited in the journal.
+    if (task?.projectCardId && (field === "task" || field === "outcome") && typeof value === "string") {
+      setProjects((prev: Project[]) => prev.map((project: Project) => {
+        if (!project.cards.some(card => card.id === task.projectCardId)) return project;
+        return {
+          ...project,
+          cards: project.cards.map(card => card.id === task.projectCardId
+            ? { ...card, [field === "task" ? "title" : "description"]: value }
+            : card),
+        };
+      }));
+    }
     // Keep linked project cards in sync when a journal task is completed or reopened.
     if (field === 'completed' && typeof value === "boolean" && task?.projectCardId) {
       const targetProject = projects.find(p => p.cards.some(c => c.id === task.projectCardId));
@@ -461,6 +473,41 @@ export function JournalPage() {
     }
   };
   const removeTask = (id: string) => save({ tasks: entry.tasks.filter((t) => t.id !== id) });
+
+  const addTaskToStudio = (taskId: string, projectId: string) => {
+    const task = entry.tasks.find(candidate => candidate.id === taskId);
+    const project = projects.find(candidate => candidate.id === projectId && !candidate.archived);
+    if (!task || !project || task.projectCardId || !task.task.trim()) return;
+
+    const cardId = crypto.randomUUID();
+    const newCard: KanbanCard = {
+      id: cardId,
+      title: task.task.trim(),
+      description: task.outcome.trim(),
+      columnId: "todo",
+      priority: "medium",
+      tags: [],
+      dueDate: dateKey,
+      createdAt: new Date().toISOString(),
+      completedAt: "",
+      order: project.cards.filter(card => card.columnId === "todo").length,
+      assignedTo: task.assignedTo || [],
+      relatedMeetingId: "",
+    };
+
+    setProjects((prev: Project[]) => prev.map(candidate => candidate.id === projectId
+      ? { ...candidate, cards: [...candidate.cards, newCard] }
+      : candidate));
+    save({
+      tasks: entry.tasks.map(candidate => candidate.id === taskId
+        ? { ...candidate, projectCardId: cardId }
+        : candidate),
+    });
+  };
+
+  const getLinkedProject = (task: Task) => task.projectCardId
+    ? projects.find(project => project.cards.some(card => card.id === task.projectCardId))
+    : undefined;
 
   // Drag and drop from project todo and blocked cards
   const getProjectCards = (columnId: KanbanColumnId): DraggableProjectCard[] => projects.flatMap(p =>
@@ -596,14 +643,17 @@ export function JournalPage() {
                   <th>Expected Outcome</th>
                   <th>System</th>
                   <th>Mission</th>
+                  <th className="w-40">Project</th>
                   <th className="w-12"></th>
                 </tr>
               </thead>
               <tbody>
                 {entry.tasks.length === 0 && (
-                  <tr><td colSpan={6} className="text-center text-zinc-500 text-sm py-8">No tasks yet. Click "Add Task" to start.</td></tr>
+                  <tr><td colSpan={7} className="text-center text-zinc-500 text-sm py-8">No tasks yet. Click "Add Task" to start.</td></tr>
                 )}
-                {entry.tasks.map((t) => (
+                {entry.tasks.map((t) => {
+                  const linkedProject = getLinkedProject(t);
+                  return (
                   <tr key={t.id} className={`group ${t.completed ? "opacity-50" : ""}`}>
                     <td className="text-center">
                       <button onClick={() => updateTask(t.id, "completed", !t.completed)} className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${t.completed ? "bg-blue-500 border-blue-500" : "border-zinc-600 hover:border-blue-400"}`}>
@@ -628,11 +678,37 @@ export function JournalPage() {
                         suggestions={missionSuggestions}
                       />
                     </td>
+                    <td>
+                      {linkedProject ? (
+                        <span
+                          className="inline-flex max-w-36 items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-1 text-[11px] text-blue-300"
+                          title={`Linked to ${linkedProject.title || "Untitled Project"}`}
+                        >
+                          <FolderKanban className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{linkedProject.title || "Untitled Project"}</span>
+                        </span>
+                      ) : (
+                        <select
+                          value=""
+                          onChange={(event) => addTaskToStudio(t.id, event.target.value)}
+                          disabled={!t.task.trim() || projects.every(project => project.archived)}
+                          aria-label={`Add ${t.task.trim() || "task"} to Project`}
+                          title={!t.task.trim() ? "Enter a task description first" : "Add this task to a project"}
+                          className="h-8 w-36 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[11px] text-zinc-300 outline-none transition-colors focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="">Add to Project...</option>
+                          {projects.filter(project => !project.archived).map(project => (
+                            <option key={project.id} value={project.id}>{project.title || "Untitled Project"}</option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
                     <td className="text-center">
                       <button onClick={() => removeTask(t.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
