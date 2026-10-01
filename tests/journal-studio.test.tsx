@@ -16,10 +16,17 @@ const project: Project = {
   archived: false,
 };
 
+const secondProject: Project = {
+  ...project,
+  id: "project-2",
+  title: "Website Refresh",
+  cards: [],
+};
+
 describe("Journal tasks in Studio", () => {
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem("local-workspace-projects", JSON.stringify([project]));
+    localStorage.setItem("local-workspace-projects", JSON.stringify([project, secondProject]));
   });
 
   it("adds a new journal task to a Studio project's To Do column and keeps edits linked", async () => {
@@ -42,7 +49,7 @@ describe("Journal tasks in Studio", () => {
     });
     fireEvent.change(studioSelect, { target: { value: project.id } });
 
-    expect(await screen.findByTitle("Linked to Launch Plan")).toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: "Project for Prepare launch brief" })).toHaveValue(project.id);
     await waitFor(() => {
       const savedProjects = JSON.parse(localStorage.getItem("local-workspace-projects") || "[]") as Project[];
       expect(savedProjects[0].cards).toHaveLength(1);
@@ -68,6 +75,34 @@ describe("Journal tasks in Studio", () => {
       const savedProjects = JSON.parse(localStorage.getItem("local-workspace-projects") || "[]") as Project[];
       expect(savedProjects[0].cards[0].title).toBe("Prepare final launch brief");
       expect(savedProjects[0].cards[0].description).toBe("An approved launch brief");
+    });
+  });
+
+  it("moves a linked journal task to the selected Studio project", async () => {
+    render(
+      <DataProvider>
+        <JournalPage />
+      </DataProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Task" }));
+    fireEvent.change(screen.getByPlaceholderText("Task description"), {
+      target: { value: "Update the homepage" },
+    });
+    fireEvent.change(await screen.findByRole("combobox", { name: "Add Update the homepage to Project" }), {
+      target: { value: project.id },
+    });
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "Project for Update the homepage" }), {
+      target: { value: secondProject.id },
+    });
+
+    await waitFor(() => {
+      const savedProjects = JSON.parse(localStorage.getItem("local-workspace-projects") || "[]") as Project[];
+      expect(savedProjects.find(candidate => candidate.id === project.id)?.cards).toHaveLength(0);
+      expect(savedProjects.find(candidate => candidate.id === secondProject.id)?.cards).toMatchObject([
+        { title: "Update the homepage", columnId: "todo" },
+      ]);
     });
   });
 });

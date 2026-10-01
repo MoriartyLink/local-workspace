@@ -163,7 +163,7 @@ function KanbanCardItem({ card, onUpdate, onDelete, onMove, onDragStart, onDragE
 }
 
 // ── Project Detail ──
-function ProjectDetail({ project, onUpdate, onBack }: { project: Project; onUpdate: (u: Partial<Project>) => void; onBack: () => void }) {
+function ProjectDetail({ project, onUpdate, onBack, onArchive }: { project: Project; onUpdate: (u: Partial<Project>) => void; onBack: () => void; onArchive: () => void }) {
   const { people } = useData();
   const [showMilestones, setShowMilestones] = useState(true);
   const [editingInfo, setEditingInfo] = useState(!project.title);
@@ -231,6 +231,9 @@ function ProjectDetail({ project, onUpdate, onBack }: { project: Project; onUpda
         <div className="ml-auto flex items-center gap-3 text-xs text-zinc-400">
           <ProjectIterationBadge project={project} />
           <span>{done}/{total} done</span><div className="w-24"><Progress value={pct} /></div><span className="text-blue-400 font-mono">{pct}%</span>
+          <Button variant="outline" size="sm" onClick={onArchive} className="h-8 gap-1.5 border-zinc-700 text-zinc-300 hover:text-white">
+            <Archive className="h-3.5 w-3.5" />Archive
+          </Button>
         </div>
       </div>
 
@@ -425,6 +428,6 @@ export function ProjectPage() {
     setProjects((prev) => prev.map((p) => p.id === id ? { ...p, ...u } : p));
   }, [setProjects]);
 
-  if (selected) return <ProjectDetail project={selected} onUpdate={(u) => updateProject(selected.id, u)} onBack={() => setSelectedId(null)} />;
+  if (selected) return <ProjectDetail project={selected} onUpdate={(u) => updateProject(selected.id, u)} onBack={() => setSelectedId(null)} onArchive={() => { updateProject(selected.id, { archived: true }); setSelectedId(null); }} />;
   return <ProjectList onSelect={setSelectedId} onAdd={addProject} />;
 }

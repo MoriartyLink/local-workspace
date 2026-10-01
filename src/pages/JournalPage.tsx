@@ -505,6 +505,29 @@ export function JournalPage() {
     });
   };
 
+  const switchTaskProject = (taskId: string, projectId: string) => {
+    const task = entry.tasks.find(candidate => candidate.id === taskId);
+    const targetProject = projects.find(candidate => candidate.id === projectId && !candidate.archived);
+    if (!task?.projectCardId || !targetProject) return;
+
+    const sourceProject = projects.find(candidate => candidate.cards.some(card => card.id === task.projectCardId));
+    if (!sourceProject || sourceProject.id === targetProject.id) return;
+
+    const card = sourceProject.cards.find(candidate => candidate.id === task.projectCardId);
+    if (!card) return;
+
+    setProjects((prev: Project[]) => prev.map(project => {
+      if (project.id === sourceProject.id) {
+        return { ...project, cards: project.cards.filter(candidate => candidate.id !== card.id) };
+      }
+      if (project.id === targetProject.id) {
+        const order = project.cards.filter(candidate => candidate.columnId === card.columnId).length;
+        return { ...project, cards: [...project.cards, { ...card, order }] };
+      }
+      return project;
+    }));
+  };
+
   const getLinkedProject = (task: Task) => task.projectCardId
     ? projects.find(project => project.cards.some(card => card.id === task.projectCardId))
     : undefined;
@@ -680,13 +703,19 @@ export function JournalPage() {
                     </td>
                     <td>
                       {linkedProject ? (
-                        <span
-                          className="inline-flex max-w-36 items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-1 text-[11px] text-blue-300"
-                          title={`Linked to ${linkedProject.title || "Untitled Project"}`}
+                        <select
+                          value={linkedProject.id}
+                          onChange={(event) => switchTaskProject(t.id, event.target.value)}
+                          aria-label={`Project for ${t.task.trim() || "task"}`}
+                          title={`Linked to ${linkedProject.title || "Untitled Project"}. Choose another project to move this task.`}
+                          className="h-8 w-36 rounded-md border border-blue-500/30 bg-blue-500/10 px-2 text-[11px] text-blue-300 outline-none transition-colors focus:border-blue-500"
                         >
-                          <FolderKanban className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{linkedProject.title || "Untitled Project"}</span>
-                        </span>
+                          {projects.filter(project => !project.archived || project.id === linkedProject.id).map(project => (
+                            <option key={project.id} value={project.id}>
+                              {project.title || "Untitled Project"}{project.archived ? " (archived)" : ""}
+                            </option>
+                          ))}
+                        </select>
                       ) : (
                         <select
                           value=""

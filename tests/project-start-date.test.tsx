@@ -4,6 +4,8 @@ import { DataProvider } from "@/contexts/DataContext";
 import { getLocalDateKey } from "@/lib/dates";
 import { ProjectPage } from "@/pages/ProjectPage";
 import type { Project } from "@/types";
+import fs from "node:fs";
+import path from "node:path";
 
 describe("project start date", () => {
   beforeEach(() => localStorage.clear());
@@ -44,5 +46,12 @@ describe("project start date", () => {
       const saved = JSON.parse(localStorage.getItem("local-workspace-projects") || "[]") as Project[];
       expect(saved[0].startDate).toBe("2026-01-15");
     });
+  });
+
+  it("keeps the start date in the Electron vault round-trip", () => {
+    const electronMain = fs.readFileSync(path.resolve("electron/main.cjs"), "utf8");
+
+    expect(electronMain).toMatch(/startDate:\s*project\.startDate\s*\|\|\s*""/);
+    expect(electronMain).toMatch(/startDate:\s*meta\.startDate\s*\|\|\s*""/);
   });
 });
