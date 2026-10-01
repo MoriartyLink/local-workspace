@@ -226,7 +226,7 @@ function ProjectTaskDragSection({
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className="h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 text-xs text-zinc-300 outline-none transition-colors focus:border-blue-500 sm:w-44"
+                className="project-select h-8 w-full sm:w-44"
               >
                 <option value="all">All projects</option>
                 {projectOptions.map(project => (
@@ -708,7 +708,7 @@ export function JournalPage() {
                           onChange={(event) => switchTaskProject(t.id, event.target.value)}
                           aria-label={`Project for ${t.task.trim() || "task"}`}
                           title={`Linked to ${linkedProject.title || "Untitled Project"}. Choose another project to move this task.`}
-                          className="h-8 w-36 rounded-md border border-blue-500/30 bg-blue-500/10 px-2 text-[11px] text-blue-300 outline-none transition-colors focus:border-blue-500"
+                          className="project-select project-select-linked h-8 w-36 text-[11px]"
                         >
                           {projects.filter(project => !project.archived || project.id === linkedProject.id).map(project => (
                             <option key={project.id} value={project.id}>
@@ -723,7 +723,7 @@ export function JournalPage() {
                           disabled={!t.task.trim() || projects.every(project => project.archived)}
                           aria-label={`Add ${t.task.trim() || "task"} to Project`}
                           title={!t.task.trim() ? "Enter a task description first" : "Add this task to a project"}
-                          className="h-8 w-36 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[11px] text-zinc-300 outline-none transition-colors focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="project-select h-8 w-36 text-[11px]"
                         >
                           <option value="">Add to Project...</option>
                           {projects.filter(project => !project.archived).map(project => (
